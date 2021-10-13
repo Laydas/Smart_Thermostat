@@ -12,6 +12,8 @@ Smart Thermostat
 #include <Adafruit_FT6206.h>
 #include "DHT.h"
 
+#include "Home_Icon.h"
+#include "Cal_Icon.h"
 #include "Gear_Icon.h"
 
 #define DHTPIN 32
@@ -31,6 +33,8 @@ const long interval = 2000;
 
 float t, h, old_t, old_h;
 
+const uint16_t *menu[3] = {Home_Icon, Cal_Icon, Gear_Icon};
+
 /***********************************************************************************************************************************/
 void setup() {
   Serial.begin(115200);
@@ -49,11 +53,10 @@ void setup() {
 
   key_h = tft.height() / 4;
   tft.fillScreen(TFT_BLACK);
-  uint16_t cols[3] = {TFT_CYAN, TFT_GREEN, TFT_YELLOW};
+
   for (int i = 0; i < 3; i++){
-    tft.fillRect(tft.width() - 100, i * key_h, 100, key_h, cols[i]);
+    tft.pushImage(380, (i+1) * 80, 100, 80, menu[i]);
   }
-  tft.pushImage(380 ,240, 100, 80, Gear_Icon);
 }
 
 /***********************************************************************************************************************************/
