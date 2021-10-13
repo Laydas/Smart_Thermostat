@@ -12,6 +12,8 @@ Smart Thermostat
 #include <Adafruit_FT6206.h>
 #include "DHT.h"
 
+#include "Gear_Icon.h"
+
 #define DHTPIN 32
 #define DHTTYPE DHT22
 #define PENRADIUS 3
@@ -45,14 +47,13 @@ void setup() {
   pinMode(TFT_BL, OUTPUT);
   digitalWrite(TFT_BL, 128);
 
-  //tft.setRotation(3);
-
   key_h = tft.height() / 4;
   tft.fillScreen(TFT_BLACK);
-  uint16_t cols[4] = {TFT_CYAN, TFT_GREEN, TFT_YELLOW, TFT_RED};
-  for (int i = 0; i < 4; i++){
+  uint16_t cols[3] = {TFT_CYAN, TFT_GREEN, TFT_YELLOW};
+  for (int i = 0; i < 3; i++){
     tft.fillRect(tft.width() - 100, i * key_h, 100, key_h, cols[i]);
   }
+  tft.pushImage(380 ,240, 100, 80, Gear_Icon);
 }
 
 /***********************************************************************************************************************************/
@@ -88,7 +89,6 @@ void loop() {
   }
   
   TS_Point p = ts.getPoint();
-  //int y = map(p.x, 0, 320, 320, 0);
   int y = p.x;
   int x = map(p.y, 0, 480, 480, 0);
 
