@@ -27,7 +27,7 @@ uint16_t pen_color = TFT_CYAN;
 unsigned long prev_time = 0;
 const long interval = 2000;
 
-float t, h;
+float t, h, old_t, old_h;
 
 /***********************************************************************************************************************************/
 void setup() {
@@ -64,14 +64,23 @@ void loop() {
     prev_time = current;
     t = dht.readTemperature();
     h = dht.readHumidity();
-    tft.setCursor(0,200,2);
-    tft.setTextColor(TFT_WHITE,TFT_BLUE); tft.setTextSize(3);
-    tft.setFreeFont(FMO12);
-    tft.print(String(t));
-    tft.println("c");
-    tft.setFreeFont(FF26);
-    tft.print(String(h));
-    tft.print("%");
+    if (t != old_t){
+      tft.setCursor(0,200,2);
+      tft.setTextColor(TFT_WHITE,TFT_BLUE); tft.setTextSize(3);
+      tft.setFreeFont(FMO12);
+      tft.fillRect(0, 150, 265, 210, TFT_BLACK);
+      tft.print(String(t));
+      tft.print("c");
+      old_t = t;
+    }
+    if (h != old_h){
+      tft.setCursor(0,280,2);
+      tft.setFreeFont(FF26);
+      tft.fillRect(0,210,265, 295, TFT_BLACK);
+      tft.print(String(h));
+      tft.print("%");
+      old_h = h;
+    }
   } 
   
   if (! ts.touched()) {
