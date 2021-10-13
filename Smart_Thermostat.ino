@@ -6,24 +6,22 @@ ESP32 on the WT32-SC01 development board
 Smart Thermostat
  
  */
-#include <Adafruit_GFX.h>
-#include <SPI.h>
 #include <TFT_eSPI.h> 
+#include <SPI.h>
+#include "Free_Fonts.h"
 #include <Adafruit_FT6206.h>
 #include "DHT.h"
 
 #define DHTPIN 32
-
 #define DHTTYPE DHT22
+#define PENRADIUS 3
 
 DHT dht(DHTPIN, DHTTYPE);
 
 TFT_eSPI tft = TFT_eSPI();
 Adafruit_FT6206 ts = Adafruit_FT6206();
 
-#define PENRADIUS 3
-
-int key_w;
+int key_h;
 uint16_t pen_color = TFT_CYAN;
 
 unsigned long prev_time = 0;
@@ -43,19 +41,17 @@ void setup() {
   }
 
   tft.init();
-
-  // Thanks to https://github.com/seaniefs/WT32-SC01-Exp
-  // for figuring this out
+  tft.setRotation(3);
   pinMode(TFT_BL, OUTPUT);
   digitalWrite(TFT_BL, 128);
 
   //tft.setRotation(3);
 
-  key_w = tft.width() / 4;
+  key_h = tft.height() / 4;
   tft.fillScreen(TFT_BLACK);
   uint16_t cols[4] = {TFT_CYAN, TFT_GREEN, TFT_YELLOW, TFT_RED};
   for (int i = 0; i < 4; i++){
-    tft.fillRect(i * key_w, 0, key_w, 100, cols[i]);
+    tft.fillRect(tft.width() - 100, i * key_h, 100, key_h, cols[i]);
   }
 }
 
@@ -68,11 +64,12 @@ void loop() {
     prev_time = current;
     t = dht.readTemperature();
     h = dht.readHumidity();
-
     tft.setCursor(0,200,2);
     tft.setTextColor(TFT_WHITE,TFT_BLUE); tft.setTextSize(3);
+    tft.setFreeFont(FMO12);
     tft.print(String(t));
     tft.println("c");
+    tft.setFreeFont(FF26);
     tft.print(String(h));
     tft.print("%");
   } 
@@ -82,25 +79,27 @@ void loop() {
   }
   
   TS_Point p = ts.getPoint();
+  //int y = map(p.x, 0, 320, 320, 0);
+  int y = p.x;
+  int x = map(p.y, 0, 480, 480, 0);
 
-  Serial.print("("); Serial.print(p.x);
-  Serial.print(", "); Serial.print(p.y);
+  Serial.print("("); Serial.print(x);
+  Serial.print(", "); Serial.print(y);
   Serial.println(")");
-
   
   
-  if (p.y < 100){
-    if (p.x < key_w) {
+  if (x > (tft.width() - 100)){
+    if (y < key_h) {
       pen_color = TFT_CYAN;
-    } else if (p.x < (key_w * 2)) {
+    } else if (y < (key_h * 2)) {
       pen_color = TFT_GREEN;
-    } else if (p.x < (key_w * 3)) {
+    } else if (y < (key_h * 3)) {
       pen_color = TFT_YELLOW;
     } else {
       pen_color = TFT_RED;
     }
   } else {
-    tft.fillCircle(p.x,p.y, PENRADIUS, pen_color);
+    tft.fillCircle(x,y, PENRADIUS, pen_color);
   }
 
   delay(5); // Delay to reduce loop rate (reduces flicker caused by aliasing with TFT screen refresh rate)
