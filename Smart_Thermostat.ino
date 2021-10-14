@@ -19,6 +19,7 @@ Smart Thermostat
 #define DHTPIN 32
 #define DHTTYPE DHT22
 #define PENRADIUS 3
+#define DEG2RAD 0.0174532925
 
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -38,7 +39,9 @@ const uint16_t *menu[3] = {Home_Icon, Cal_Icon, Gear_Icon};
 /***********************************************************************************************************************************/
 void setup() {
   Serial.begin(115200);
+  
   dht.begin();
+  
   // Pins 18/19 are SDA/SCL for touch sensor on this device
   // 40 is a touch threshold
   if (!ts.begin(18, 19, 40)) {
@@ -57,10 +60,9 @@ void setup() {
   for (int i = 0; i < 3; i++){
     tft.pushImage(380, (i+1) * 80, 100, 80, menu[i]);
   }
+  drawWifi(1);
+  
 }
-
-/***********************************************************************************************************************************/
-uint16_t fill_color = TFT_BLACK;
 
 void loop() {
   unsigned long current = millis();
@@ -115,4 +117,50 @@ void loop() {
   }
 
   delay(5); // Delay to reduce loop rate (reduces flicker caused by aliasing with TFT screen refresh rate)
+}
+
+void drawWifi(int strength){
+  uint16_t str_sig[3] = {0x39E7,0x39E7,0x39E7};
+  for (int i = 0; i < strength; i++){
+    str_sig[i] = TFT_WHITE; 
+  }
+  fillArc(455, 30, 310, 17, 25, 30, 4, str_sig[2]);
+  fillArc(455, 35, 315, 15, 18, 25, 4, str_sig[1]);
+  tft.fillCircle(454, 23, 4, str_sig[0]);
+}
+
+void fillArc(int x, int y, int start_angle, int seg_count, int rx, int ry, int w, unsigned int colour)
+{
+
+  byte seg = 6; // Segments are 3 degrees wide = 120 segments for 360 degrees
+  byte inc = 6; // Draw segments every 3 degrees, increase to 6 for segmented ring
+
+  // Calculate first pair of coordinates for segment start
+  float sx = cos((start_angle - 90) * DEG2RAD);
+  float sy = sin((start_angle - 90) * DEG2RAD);
+  uint16_t x0 = sx * (rx - w) + x;
+  uint16_t y0 = sy * (ry - w) + y;
+  uint16_t x1 = sx * rx + x;
+  uint16_t y1 = sy * ry + y;
+
+  // Draw colour blocks every inc degrees
+  for (int i = start_angle; i < start_angle + seg * seg_count; i += inc) {
+
+    // Calculate pair of coordinates for segment end
+    float sx2 = cos((i + seg - 90) * DEG2RAD);
+    float sy2 = sin((i + seg - 90) * DEG2RAD);
+    int x2 = sx2 * (rx - w) + x;
+    int y2 = sy2 * (ry - w) + y;
+    int x3 = sx2 * rx + x;
+    int y3 = sy2 * ry + y;
+
+    tft.fillTriangle(x0, y0, x1, y1, x2, y2, colour);
+    tft.fillTriangle(x1, y1, x2, y2, x3, y3, colour);
+
+    // Copy segment end to sgement start for next segment
+    x0 = x2;
+    y0 = y2;
+    x1 = x3;
+    y1 = y3;
+  }
 }
