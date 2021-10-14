@@ -60,7 +60,7 @@ void setup() {
   for (int i = 0; i < 3; i++){
     tft.pushImage(380, (i+1) * 80, 100, 80, menu[i]);
   }
-  drawWifi(1);
+  drawWifi(455, 35, 1);
   
 }
 
@@ -119,15 +119,21 @@ void loop() {
   delay(5); // Delay to reduce loop rate (reduces flicker caused by aliasing with TFT screen refresh rate)
 }
 
-void drawWifi(int strength){
+//------------------------------------------------
+// x is center X of wifi logo
+// y is center Y of wifi logo
+// strength 0-3 is the number of bars highlighted
+//------------------------------------------------
+void drawWifi(int x, int y, int strength){
   uint16_t str_sig[3] = {0x39E7,0x39E7,0x39E7};
   for (int i = 0; i < strength; i++){
     str_sig[i] = TFT_WHITE; 
   }
-  fillArc(455, 30, 310, 17, 25, 30, 4, str_sig[2]);
-  fillArc(455, 35, 315, 15, 18, 25, 4, str_sig[1]);
-  tft.fillCircle(454, 23, 4, str_sig[0]);
+  fillArc(x, y, 310, 17, 25, 30, 4, str_sig[2]);
+  fillArc(x, y+5, 315, 15, 18, 25, 4, str_sig[1]);
+  tft.fillCircle(x-1, y-7, 4, str_sig[0]);
 }
+//------------------------------------------------
 
 void fillArc(int x, int y, int start_angle, int seg_count, int rx, int ry, int w, unsigned int colour)
 {
