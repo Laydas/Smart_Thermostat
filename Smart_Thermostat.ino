@@ -18,12 +18,14 @@ Smart Thermostat
 
 #define DHTPIN 32
 #define DHTTYPE DHT22
-#define PENRADIUS 3
+#define PENRADIUS 2
 #define DEG2RAD 0.0174532925
 
 DHT dht(DHTPIN, DHTTYPE);
 
 TFT_eSPI tft = TFT_eSPI();
+TFT_eSprite img = TFT_eSprite(&tft);
+
 Adafruit_FT6206 ts = Adafruit_FT6206();
 
 int key_h, button_col;
@@ -82,7 +84,7 @@ void loop() {
 
   handleTouch(ts.getPoint(), nav[nav_current]);
 
-  delay(5); // Delay to reduce loop rate (reduces flicker caused by aliasing with TFT screen refresh rate)
+  delay(250); // Delay to reduce loop rate (reduces flicker caused by aliasing with TFT screen refresh rate)
 }
 
 void handleTouch(TS_Point p, char* screen){
@@ -138,7 +140,6 @@ int getButtonPress(int x, int y){
 
 void drawNav(char* screen){
   tft.fillScreen(TFT_BLACK);
-  tft.drawLine(button_col, 0, button_col, tft.height(), TFT_WHITE);
   if (screen == "Main"){
     drawMain();
   } else if (screen == "Rooms"){
@@ -196,12 +197,15 @@ float getDHTTemp(float old_t, char* screen){
 }
 
 void drawDHTTemp(float t){
-  tft.setCursor(0,200,2);
-  tft.setTextColor(TFT_WHITE,TFT_BLUE); tft.setTextSize(3);
-  tft.setFreeFont(FMO12);
-  tft.fillRect(0, 150, 265, 210, TFT_BLACK);
-  tft.print(String(t));
-  tft.print("c");
+  img.createSprite(265, 60);
+  img.fillSprite(TFT_BLACK);
+  img.setTextSize(2);
+  img.setTextDatum(ML_DATUM);
+  img.setFreeFont(FF26);
+  String temp = String(t) + " c";
+  img.drawString(temp, 5, 30, GFXFF);
+  img.pushSprite(0, 150);
+  img.deleteSprite();
 }
 
 // Update the screen with the humidity
@@ -214,11 +218,15 @@ float getDHTHum(float old_h, char* screen){
 }
 
 void drawDHTHum(float h){
-  tft.setCursor(0,280,2);
-  tft.setFreeFont(FF26);
-  tft.fillRect(0,210,265, 295, TFT_BLACK);
-  tft.print(String(h));
-  tft.print("%");
+  img.createSprite(265, 60);
+  img.fillSprite(TFT_BLACK);
+  img.setTextSize(2);
+  img.setTextDatum(ML_DATUM);
+  img.setFreeFont(FF26);
+  String hum = String(h) + "%";
+  img.drawString(hum, 5, 30, GFXFF);
+  img.pushSprite(0, 210);
+  img.deleteSprite();
 }
 
 //------------------------------------------------
@@ -277,18 +285,20 @@ void fillArc(int x, int y, int start_angle, int seg_count, int rx, int ry, int w
 }
 
 void drawBack(){
-  int start_x = button_col + 30;
-  int start_y = key_h * 1.5;
-  for(int i = 0; i < 20; i++){
-    tft.fillCircle(start_x + i, start_y - i, PENRADIUS, TFT_WHITE);
+  img.createSprite(80, 80);
+  int start_x = 10;
+  int start_y = 40;
+  for(int i = 0; i < 25; i++){
+    img.fillCircle(start_x + i, start_y - i, PENRADIUS, TFT_WHITE);
   }
   
-  for(int i = 0; i < 20; i++){
-    tft.fillCircle(start_x + i, start_y + i, PENRADIUS, TFT_WHITE);
+  for(int i = 0; i < 25; i++){
+    img.fillCircle(start_x + i, start_y + i, PENRADIUS, TFT_WHITE);
   }
 
-  for(int i = 0; i < 40; i++){
-    tft.fillCircle( start_x + i, start_y, PENRADIUS, TFT_WHITE);
+  for(int i = 0; i < 50; i++){
+    img.fillCircle( start_x + i, start_y, PENRADIUS, TFT_WHITE);
   }
-  
+  img.pushSprite(400, 80);
+  img.deleteSprite();
 }
