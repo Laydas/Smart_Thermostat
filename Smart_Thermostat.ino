@@ -32,9 +32,10 @@ uint16_t pen_color = TFT_CYAN;
 unsigned long prev_time = 0;
 const long interval = 2000;
 
-float t, h, old_t, old_h;
+float old_t, old_h;
 
 const uint16_t *menu[3] = {Home_Icon, Cal_Icon, Gear_Icon};
+
 
 /***********************************************************************************************************************************/
 void setup() {
@@ -64,30 +65,38 @@ void setup() {
   
 }
 
+float getDHTTemp(float old_t){
+  float t = dht.readTemperature();
+  if (t != old_t){
+    tft.setCursor(0,200,2);
+    tft.setTextColor(TFT_WHITE,TFT_BLUE); tft.setTextSize(3);
+    tft.setFreeFont(FMO12);
+    tft.fillRect(0, 150, 265, 210, TFT_BLACK);
+    tft.print(String(t));
+    tft.print("c");
+  }
+  return t;
+}
+
+float getDHTHum(float old_h){
+  float h = dht.readHumidity();
+  if (h != old_h){
+    tft.setCursor(0,280,2);
+    tft.setFreeFont(FF26);
+    tft.fillRect(0,210,265, 295, TFT_BLACK);
+    tft.print(String(h));
+    tft.print("%");
+  }
+  return h;
+}
+
 void loop() {
   unsigned long current = millis();
   if(current - prev_time >= interval){
     prev_time = current;
-    t = dht.readTemperature();
-    h = dht.readHumidity();
-    if (t != old_t){
-      tft.setCursor(0,200,2);
-      tft.setTextColor(TFT_WHITE,TFT_BLUE); tft.setTextSize(3);
-      tft.setFreeFont(FMO12);
-      tft.fillRect(0, 150, 265, 210, TFT_BLACK);
-      tft.print(String(t));
-      tft.print("c");
-      old_t = t;
+      old_t = getDHTTemp(old_t);
+      old_h = getDHTHum(old_h);
     }
-    if (h != old_h){
-      tft.setCursor(0,280,2);
-      tft.setFreeFont(FF26);
-      tft.fillRect(0,210,265, 295, TFT_BLACK);
-      tft.print(String(h));
-      tft.print("%");
-      old_h = h;
-    }
-  } 
   
   if (! ts.touched()) {
     return;
