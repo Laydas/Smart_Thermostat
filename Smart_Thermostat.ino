@@ -65,6 +65,50 @@ void setup() {
   
 }
 
+void loop() {
+  // Update the onboard temp/humidity every 2 seconds.
+  // This might be a bit aggressive.
+  unsigned long current = millis();
+  if(current - prev_time >= interval){
+    prev_time = current;
+      old_t = getDHTTemp(old_t);
+      old_h = getDHTHum(old_h);
+    }
+
+  // Restart loop if the screen hasn't been touched
+  if (! ts.touched()) {
+    return;
+  }
+
+  // Get where the screen was touched and map it out for
+  // the rotated (landscape) display
+  TS_Point p = ts.getPoint();
+  int y = p.x;
+  int x = map(p.y, 0, 480, 480, 0);
+
+  // Print out the touch point for debugging (remove upon deploy)
+  Serial.print("("); Serial.print(x);
+  Serial.print(", "); Serial.print(y);
+  Serial.println(")");
+  
+  // Figure out where the screen was touched.
+  if (x > (tft.width() - 100)){
+    if (y < (key_h * 2) && (y > key_h)) {
+      pen_color = TFT_GREEN;
+    } else if (y < (key_h * 3)) {
+      pen_color = TFT_YELLOW;
+    } else {
+      pen_color = TFT_RED;
+    }
+  } else {
+    tft.fillCircle(x,y, PENRADIUS, pen_color);
+  }
+
+  delay(5); // Delay to reduce loop rate (reduces flicker caused by aliasing with TFT screen refresh rate)
+}
+
+
+// Update the screen with the temperature
 float getDHTTemp(float old_t){
   float t = dht.readTemperature();
   if (t != old_t){
@@ -78,6 +122,7 @@ float getDHTTemp(float old_t){
   return t;
 }
 
+// Update the screen with the humidity
 float getDHTHum(float old_h){
   float h = dht.readHumidity();
   if (h != old_h){
@@ -90,43 +135,6 @@ float getDHTHum(float old_h){
   return h;
 }
 
-void loop() {
-  unsigned long current = millis();
-  if(current - prev_time >= interval){
-    prev_time = current;
-      old_t = getDHTTemp(old_t);
-      old_h = getDHTHum(old_h);
-    }
-  
-  if (! ts.touched()) {
-    return;
-  }
-  
-  TS_Point p = ts.getPoint();
-  int y = p.x;
-  int x = map(p.y, 0, 480, 480, 0);
-
-  Serial.print("("); Serial.print(x);
-  Serial.print(", "); Serial.print(y);
-  Serial.println(")");
-  
-  
-  if (x > (tft.width() - 100)){
-    if (y < key_h) {
-      pen_color = TFT_CYAN;
-    } else if (y < (key_h * 2)) {
-      pen_color = TFT_GREEN;
-    } else if (y < (key_h * 3)) {
-      pen_color = TFT_YELLOW;
-    } else {
-      pen_color = TFT_RED;
-    }
-  } else {
-    tft.fillCircle(x,y, PENRADIUS, pen_color);
-  }
-
-  delay(5); // Delay to reduce loop rate (reduces flicker caused by aliasing with TFT screen refresh rate)
-}
 
 //------------------------------------------------
 // x is center X of wifi logo
@@ -144,6 +152,9 @@ void drawWifi(int x, int y, int strength){
 }
 //------------------------------------------------
 
+
+// I took this function from the TFT_espi library examples
+// I really just use this to draw a wifi shape without using images
 void fillArc(int x, int y, int start_angle, int seg_count, int rx, int ry, int w, unsigned int colour)
 {
 
