@@ -36,6 +36,8 @@ float old_t, old_h;
 
 const uint16_t *menu[3] = {Home_Icon, Cal_Icon, Gear_Icon};
 
+char* nav[4] = {"Main","Rooms","Schedule","Settings"};
+int nav_current = 0;
 
 /***********************************************************************************************************************************/
 void setup() {
@@ -56,12 +58,8 @@ void setup() {
   digitalWrite(TFT_BL, 128);
 
   key_h = tft.height() / 4;
-  tft.fillScreen(TFT_BLACK);
-
-  for (int i = 0; i < 3; i++){
-    tft.pushImage(380, (i+1) * 80, 100, 80, menu[i]);
-  }
-  drawWifi(455, 35, 1);
+  
+  drawNav(nav_current);
   
 }
 
@@ -107,7 +105,34 @@ void loop() {
   delay(5); // Delay to reduce loop rate (reduces flicker caused by aliasing with TFT screen refresh rate)
 }
 
+void drawNav(int screen){
+  tft.fillScreen(TFT_BLACK);
+  if (screen == 0){
+    drawMain();
+  } else if (screen == 1){
+    drawRooms();
+  } else if (screen == 2){
+    drawSchedule();
+  } else if (screen == 3){
+    drawSettings();
+  }
+  drawWifi(455, 35, 1);
+}
 
+void drawMain(){
+  for (int i = 0; i < 3; i++){
+    tft.pushImage(380, (i+1) * 80, 100, 80, menu[i]);
+  }
+}
+void drawRooms(){
+  
+}
+void drawSchedule(){
+  
+}
+void drawSettings(){
+  
+}
 // Update the screen with the temperature
 float getDHTTemp(float old_t){
   float t = dht.readTemperature();
