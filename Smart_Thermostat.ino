@@ -26,7 +26,7 @@ DHT dht(DHTPIN, DHTTYPE);
 TFT_eSPI tft = TFT_eSPI();
 Adafruit_FT6206 ts = Adafruit_FT6206();
 
-int key_h;
+int key_h, button_col;
 uint16_t pen_color = TFT_CYAN;
 
 unsigned long prev_time = 0;
@@ -58,8 +58,9 @@ void setup() {
   digitalWrite(TFT_BL, 128);
 
   key_h = tft.height() / 4;
+  button_col = tft.width() - 100;
   
-  drawNav(nav_current);
+  drawNav(nav[nav_current]);
   
 }
 
@@ -69,51 +70,72 @@ void loop() {
   unsigned long current = millis();
   if(current - prev_time >= interval){
     prev_time = current;
-      old_t = getDHTTemp(old_t);
-      old_h = getDHTHum(old_h);
-    }
-
+    old_t = getDHTTemp(old_t, nav[nav_current]);
+    old_h = getDHTHum(old_h, nav[nav_current]);
+    drawWifi(455, 35, 1);
+  }
+    
   // Restart loop if the screen hasn't been touched
   if (! ts.touched()) {
     return;
   }
 
-  // Get where the screen was touched and map it out for
-  // the rotated (landscape) display
-  TS_Point p = ts.getPoint();
-  int y = p.x;
-  int x = map(p.y, 0, 480, 480, 0);
-
-  // Print out the touch point for debugging (remove upon deploy)
-  Serial.print("("); Serial.print(x);
-  Serial.print(", "); Serial.print(y);
-  Serial.println(")");
-  
-  // Figure out where the screen was touched.
-  if (x > (tft.width() - 100)){
-    if (y < (key_h * 2) && (y > key_h)) {
-      pen_color = TFT_GREEN;
-    } else if (y < (key_h * 3)) {
-      pen_color = TFT_YELLOW;
-    } else {
-      pen_color = TFT_RED;
-    }
-  } else {
-    tft.fillCircle(x,y, PENRADIUS, pen_color);
-  }
+  handleTouch(ts.getPoint(), nav[nav_current]);
 
   delay(5); // Delay to reduce loop rate (reduces flicker caused by aliasing with TFT screen refresh rate)
 }
 
-void drawNav(int screen){
+void handleTouch(TS_Point p, char* screen){
+  int y = p.x;
+  int x = map(p.y, 0, 480, 480, 0);
+  Serial.print("("); Serial.print(x);
+  Serial.print(", "); Serial.print(y);
+  Serial.println(")");
+  
+  Serial.println(screen);
+  if (screen == "Main"){
+    if (x > button_col){
+      if (y > (key_h * 3)){
+        // Button 3 was pressed
+        nav_current = 3;
+      } else if ( y > (key_h * 2)) {
+        // Button 2 was pressed
+        nav_current = 2;
+      } else if (y > key_h){
+        // Button 1 was pressed
+        nav_current = 1;
+      } 
+      drawNav(nav[nav_current]);  
+    } else {
+      //tft.fillCircle(x,y, PENRADIUS, pen_color);
+    }
+  } else if (screen == "Rooms"){
+    if (x > button_col){
+      if (y > (key_h * 3)){
+        // Button 3 was pressed
+        //nav_current = 3;
+      } else if ( y > (key_h * 2)) {
+        // Button 2 was pressed
+        //nav_current = 2;
+      } else if (y > key_h){
+        // Button 1 was pressed
+        nav_current = 0;
+      } 
+      drawNav(nav[nav_current]);  
+    }
+  }
+}
+
+void drawNav(char* screen){
   tft.fillScreen(TFT_BLACK);
-  if (screen == 0){
+  tft.drawLine(button_col, 0, button_col, tft.height(), TFT_WHITE);
+  if (screen == "Main"){
     drawMain();
-  } else if (screen == 1){
+  } else if (screen == "Rooms"){
     drawRooms();
-  } else if (screen == 2){
+  } else if (screen == "Schedule"){
     drawSchedule();
-  } else if (screen == 3){
+  } else if (screen == "Settings"){
     drawSettings();
   }
   drawWifi(455, 35, 1);
@@ -123,43 +145,71 @@ void drawMain(){
   for (int i = 0; i < 3; i++){
     tft.pushImage(380, (i+1) * 80, 100, 80, menu[i]);
   }
+  drawDHTTemp(old_t);
+  drawDHTHum(old_h);
 }
+
 void drawRooms(){
-  
+  tft.setCursor(0,200,2);
+  tft.setTextColor(TFT_WHITE,TFT_BLUE); tft.setTextSize(3);
+  tft.setFreeFont(FMO12);
+  tft.fillRect(0, 150, 265, 210, TFT_BLACK);
+  tft.print("Rooms!");
+  drawBack();
 }
+
 void drawSchedule(){
-  
+  tft.setCursor(0,200,2);
+  tft.setTextColor(TFT_WHITE,TFT_BLUE); tft.setTextSize(3);
+  tft.setFreeFont(FMO12);
+  tft.fillRect(0, 150, 265, 210, TFT_BLACK);
+  tft.print("Schedule!");
+  drawBack();
 }
+
 void drawSettings(){
-  
+  tft.setCursor(0,200,2);
+  tft.setTextColor(TFT_WHITE,TFT_BLUE); tft.setTextSize(3);
+  tft.setFreeFont(FMO12);
+  tft.fillRect(0, 150, 265, 210, TFT_BLACK);
+  tft.print("Settings!");
+  drawBack();
 }
+
 // Update the screen with the temperature
-float getDHTTemp(float old_t){
+float getDHTTemp(float old_t, char* screen){
   float t = dht.readTemperature();
-  if (t != old_t){
-    tft.setCursor(0,200,2);
-    tft.setTextColor(TFT_WHITE,TFT_BLUE); tft.setTextSize(3);
-    tft.setFreeFont(FMO12);
-    tft.fillRect(0, 150, 265, 210, TFT_BLACK);
-    tft.print(String(t));
-    tft.print("c");
+  if (t != old_t && screen == "Main"){
+    drawDHTTemp(t);
   }
   return t;
 }
 
+void drawDHTTemp(float t){
+  tft.setCursor(0,200,2);
+  tft.setTextColor(TFT_WHITE,TFT_BLUE); tft.setTextSize(3);
+  tft.setFreeFont(FMO12);
+  tft.fillRect(0, 150, 265, 210, TFT_BLACK);
+  tft.print(String(t));
+  tft.print("c");
+}
+
 // Update the screen with the humidity
-float getDHTHum(float old_h){
+float getDHTHum(float old_h, char* screen){
   float h = dht.readHumidity();
-  if (h != old_h){
-    tft.setCursor(0,280,2);
-    tft.setFreeFont(FF26);
-    tft.fillRect(0,210,265, 295, TFT_BLACK);
-    tft.print(String(h));
-    tft.print("%");
+  if (h != old_h && screen == "Main"){
+    drawDHTHum(h);
   }
   return h;
 }
 
+void drawDHTHum(float h){
+  tft.setCursor(0,280,2);
+  tft.setFreeFont(FF26);
+  tft.fillRect(0,210,265, 295, TFT_BLACK);
+  tft.print(String(h));
+  tft.print("%");
+}
 
 //------------------------------------------------
 // x is center X of wifi logo
@@ -214,4 +264,21 @@ void fillArc(int x, int y, int start_angle, int seg_count, int rx, int ry, int w
     x1 = x3;
     y1 = y3;
   }
+}
+
+void drawBack(){
+  int start_x = button_col + 30;
+  int start_y = key_h * 1.5;
+  for(int i = 0; i < 20; i++){
+    tft.fillCircle(start_x + i, start_y - i, PENRADIUS, TFT_WHITE);
+  }
+  
+  for(int i = 0; i < 20; i++){
+    tft.fillCircle(start_x + i, start_y + i, PENRADIUS, TFT_WHITE);
+  }
+
+  for(int i = 0; i < 40; i++){
+    tft.fillCircle( start_x + i, start_y, PENRADIUS, TFT_WHITE);
+  }
+  
 }
