@@ -86,6 +86,7 @@ void loop() {
 }
 
 void handleTouch(TS_Point p, char* screen){
+  int new_nav = nav_current;
   int y = p.x;
   int x = map(p.y, 0, 480, 480, 0);
   Serial.print("("); Serial.print(x);
@@ -93,36 +94,45 @@ void handleTouch(TS_Point p, char* screen){
   Serial.println(")");
   
   Serial.println(screen);
+
+  int button = getButtonPress(x, y);
+  Serial.println(button);
   if (screen == "Main"){
-    if (x > button_col){
-      if (y > (key_h * 3)){
-        // Button 3 was pressed
-        nav_current = 3;
-      } else if ( y > (key_h * 2)) {
-        // Button 2 was pressed
-        nav_current = 2;
-      } else if (y > key_h){
-        // Button 1 was pressed
-        nav_current = 1;
-      } 
-      drawNav(nav[nav_current]);  
+    if (button == 1){
+      new_nav = 1;
+    } else if (button == 2){
+      new_nav = 2;
+    } else if (button == 3){
+      new_nav = 3;
+    }
+  } else {
+    if (button == 1) {
+      new_nav = 0;
+    }  
+  }
+  
+  if(new_nav != nav_current){
+    drawNav(nav[new_nav]);
+    nav_current = new_nav;
+  }
+}
+
+int getButtonPress(int x, int y){
+  if (x > button_col){
+    if (y > (key_h * 3)){
+      // Button 3 was pressed
+      return 3;
+    } else if ( y > (key_h * 2)) {
+      // Button 2 was pressed
+      return 2;
+    } else if (y > key_h){
+      // Button 1 was pressed
+      return 1;
     } else {
-      //tft.fillCircle(x,y, PENRADIUS, pen_color);
+      return 0;
     }
-  } else if (screen == "Rooms"){
-    if (x > button_col){
-      if (y > (key_h * 3)){
-        // Button 3 was pressed
-        //nav_current = 3;
-      } else if ( y > (key_h * 2)) {
-        // Button 2 was pressed
-        //nav_current = 2;
-      } else if (y > key_h){
-        // Button 1 was pressed
-        nav_current = 0;
-      } 
-      drawNav(nav[nav_current]);  
-    }
+  } else {
+    return 0;
   }
 }
 
