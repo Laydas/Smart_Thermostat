@@ -245,6 +245,7 @@ void drawSchedule(){
     temp_str += "  " + String(schedule[current_dow].times[i].temp);
     temp_str += "c";
     img.drawString(temp_str, 0, 20, GFXFF);
+    img.drawCircle(265,10,3,TFT_WHITE);
     img.pushSprite(20, 100+(i*40));
     img.deleteSprite();
   }
