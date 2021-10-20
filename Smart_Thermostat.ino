@@ -39,14 +39,55 @@ float old_t, old_h;
 const uint16_t *menu[3] = {Home_Icon, Cal_Icon, Gear_Icon};
 
 char* nav[4] = {"Main","Rooms","Schedule","Settings"};
+
+struct temp_time {
+  int hour;
+  int minute;
+  float temp;
+};
+
+struct schedule {
+  char* day;
+  temp_time times[10] = {};
+  int len = 0;
+} schedule[7];
+
+const int next_dow[4] = {170, 20, 210, 80};
+const int prev_dow[4] = {30, 20, 70, 80};
+int current_dow = 0;
+
 int nav_current = 0;
+
 
 /***********************************************************************************************************************************/
 void setup() {
   Serial.begin(115200);
-  
   dht.begin();
-  
+
+  // --------------------------------------------------------------------
+  // Create a default schedule here. Replace this will a call
+  // from ROM first, there should be a way to save your schedule
+  // --------------------------------------------------------------------
+  char* dow[7] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
+  // Default schedule
+  for(int i = 1; i < 6; i++){
+    schedule[i].day = dow[i];
+    schedule[i].times[0] = {6,0,22.5};
+    schedule[i].times[1] = {8,30,19.5};
+    schedule[i].times[2] = {3,30,22.5};
+    schedule[i].times[3] = {11,30,19.5};
+    schedule[i].len = 4;
+  }
+  schedule[0].day = dow[0];
+  schedule[0].times[0] = {8,0,22};
+  schedule[0].times[1] = {11,0,19.5};
+  schedule[0].len = 2;
+  schedule[6].day = dow[6];
+  schedule[6].times[0] = {8,0,22};
+  schedule[6].times[1] = {11,0,19.5};
+  schedule[6].len = 2;
+  // --------------------------------------------------------------------
+
   // Pins 18/19 are SDA/SCL for touch sensor on this device
   // 40 is a touch threshold
   if (!ts.begin(18, 19, 40)) {
@@ -91,14 +132,17 @@ void handleTouch(TS_Point p, char* screen){
   int new_nav = nav_current;
   int y = p.x;
   int x = map(p.y, 0, 480, 480, 0);
-  Serial.print("("); Serial.print(x);
-  Serial.print(", "); Serial.print(y);
-  Serial.println(")");
-  
-  Serial.println(screen);
 
   int button = getButtonPress(x, y);
-  Serial.println(button);
+  
+  if ((x > prev_dow[0]) && (x < prev_dow[2]) && (y > prev_dow[1]) && y < prev_dow[3]){
+    current_dow = (current_dow + 6) % 7;
+    drawSchedule();
+  }
+  if (x > next_dow[0] && x < next_dow[2] && y > next_dow[1] && y < next_dow[3]){
+    current_dow = (current_dow + 1) % 7;
+    drawSchedule();
+  }
   if (screen == "Main"){
     if (button == 1){
       new_nav = 1;
@@ -170,11 +214,40 @@ void drawRooms(){
 }
 
 void drawSchedule(){
-  tft.setCursor(0,200,2);
-  tft.setTextColor(TFT_WHITE,TFT_BLUE); tft.setTextSize(3);
-  tft.setFreeFont(FMO12);
-  tft.fillRect(0, 150, 265, 210, TFT_BLACK);
-  tft.print("Schedule!");
+  img.setTextSize(2);
+  img.setFreeFont(FF26);
+  img.createSprite(160, 80);
+  img.fillTriangle(0,40,20,20,20,60, TFT_WHITE);
+  img.fillTriangle(160,40,140,20,140,60, TFT_WHITE);
+  img.setTextDatum(MC_DATUM);
+  img.drawString(schedule[current_dow].day, 80, 40);
+  img.pushSprite(40,10);
+  img.deleteSprite();
+  
+  img.setTextSize(2);
+  img.setFreeFont(FM9);
+  img.setTextDatum(ML_DATUM);
+  img.createSprite(320, 220);
+  img.fillSprite(TFT_BLACK);
+  img.pushSprite(0,100);
+  img.deleteSprite();
+  for(int i = 0; i < schedule[current_dow].len; i++){
+    img.createSprite(300,40);
+    String temp_str;
+    if (schedule[current_dow].times[i].hour < 10){
+      temp_str += "0";
+    }
+    temp_str += String(schedule[current_dow].times[i].hour) + ":";
+    if (schedule[current_dow].times[i].minute < 10){
+      temp_str += "0";
+    }
+    temp_str += String(schedule[current_dow].times[i].minute);
+    temp_str += "  " + String(schedule[current_dow].times[i].temp);
+    temp_str += "c";
+    img.drawString(temp_str, 0, 20, GFXFF);
+    img.pushSprite(20, 100+(i*40));
+    img.deleteSprite();
+  }
   drawBack();
 }
 
