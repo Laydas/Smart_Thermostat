@@ -74,17 +74,17 @@ void setup() {
     schedule[i].day = dow[i];
     schedule[i].times[0] = {6,0,22.5};
     schedule[i].times[1] = {8,30,19.5};
-    schedule[i].times[2] = {3,30,22.5};
-    schedule[i].times[3] = {11,30,19.5};
+    schedule[i].times[2] = {15,30,22.5};
+    schedule[i].times[3] = {23,30,19.5};
     schedule[i].len = 4;
   }
   schedule[0].day = dow[0];
   schedule[0].times[0] = {8,0,22};
-  schedule[0].times[1] = {11,0,19.5};
+  schedule[0].times[1] = {23,0,19.5};
   schedule[0].len = 2;
   schedule[6].day = dow[6];
   schedule[6].times[0] = {8,0,22};
-  schedule[6].times[1] = {11,0,19.5};
+  schedule[6].times[1] = {23,0,19.5};
   schedule[6].len = 2;
   // --------------------------------------------------------------------
 
