@@ -202,7 +202,7 @@ int getButtonPress(int x, int y){
 }
 
 void drawNav(char* screen){
-  tft.fillScreen(TFT_BLACK);
+  tft.fillRect(0,40,480,280,TFT_BLACK);
   if (screen == "Main"){
     drawMain();
   } else if (screen == "Rooms"){
@@ -240,18 +240,15 @@ void drawSchedule(){
   img.fillTriangle(160,40,140,20,140,60, TFT_WHITE);
   img.setTextDatum(MC_DATUM);
   img.drawString(schedule[current_dow].day, 80, 40);
-  img.pushSprite(40,10);
+  img.pushSprite(40,35);
   img.deleteSprite();
   
   img.setTextSize(2);
   img.setFreeFont(FM9);
   img.setTextDatum(ML_DATUM);
-  img.createSprite(320, 220);
-  img.fillSprite(TFT_BLACK);
-  img.pushSprite(0,100);
-  img.deleteSprite();
+  
+  img.createSprite(300,160);
   for(int i = 0; i < schedule[current_dow].len; i++){
-    img.createSprite(300,40);
     String temp_str;
     if (schedule[current_dow].times[i].hour < 10){
       temp_str += "0";
@@ -263,11 +260,11 @@ void drawSchedule(){
     temp_str += String(schedule[current_dow].times[i].minute);
     temp_str += "  " + String(schedule[current_dow].times[i].temp);
     temp_str += "c";
-    img.drawString(temp_str, 0, 20, GFXFF);
-    img.drawCircle(265,10,3,TFT_WHITE);
-    img.pushSprite(20, 100+(i*40));
-    img.deleteSprite();
+    img.drawString(temp_str, 0, 20+(i*40), GFXFF);
+    img.drawCircle(265,10+(i*40),3,TFT_WHITE);
   }
+  img.pushSprite(20, 100);
+  img.deleteSprite();
   drawBack();
 }
 
