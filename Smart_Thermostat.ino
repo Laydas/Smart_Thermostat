@@ -56,6 +56,11 @@ struct schedule {
   int len = 0;
 } schedule[7];
 
+struct current_block {
+  int day;
+  int slot;
+} current_block;
+
 const int next_dow[4] = {170, 20, 210, 80};
 const int prev_dow[4] = {30, 20, 70, 80};
 const char* ssid = SSID_NAME;
@@ -74,8 +79,6 @@ int nav_current = 0;
 void setup() {
   Serial.begin(115200);
   dht.begin();
-
-  initWiFi();
   
   // --------------------------------------------------------------------
   // Create a default schedule here. Replace this will a call
@@ -101,6 +104,8 @@ void setup() {
   schedule[6].len = 2;
   // --------------------------------------------------------------------
 
+  initWiFi();
+  
   // Pins 18/19 are SDA/SCL for touch sensor on this device
   // 40 is a touch threshold
   if (!ts.begin(18, 19, 40)) {
@@ -109,6 +114,7 @@ void setup() {
   }
 
   tft.init();
+  tft.fillScreen(TFT_BLACK);
   tft.setRotation(3);
   pinMode(TFT_BL, OUTPUT);
   digitalWrite(TFT_BL, 128);
@@ -129,6 +135,7 @@ void loop() {
     old_t = getDHTTemp(old_t, nav[nav_current]);
     old_h = getDHTHum(old_h, nav[nav_current]);
     drawTime();
+    drawGoal();
     checkWifi();
     if((WiFi.status() != WL_CONNECTED) && (current - prev_time_wifi >= wifi_interval)){
       WiFi.disconnect();
@@ -400,6 +407,7 @@ void initWiFi(){
     delay(1000);
   }
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  initSchedule();
 }
 
 void checkWifi(){
@@ -439,4 +447,62 @@ void drawTime(){
   img.drawString(full_out, 380, 10);
   img.pushSprite(30,0);
   img.deleteSprite();
+}
+
+void drawGoal(){
+  String goal_str = String(schedule[current_block.day].times[current_block.slot].temp);
+  img.createSprite(100,60);
+  img.setTextSize(1);
+  img.setTextDatum(MC_DATUM);
+  img.drawString(goal_str,50,30);
+  img.pushSprite(10,60);
+  img.deleteSprite();
+}
+
+void initSchedule(){
+  struct tm timeinfo;
+  while(!getLocalTime(&timeinfo)){
+    delay(100);
+  }
+  char dow[2];
+  char hour[3];
+  char minute[3];
+  
+  strftime(dow, 2, "%w", &timeinfo);
+  strftime(hour, 3, "%H", &timeinfo);
+  strftime(minute, 3, "%M", &timeinfo);
+
+  int dow_int = String(dow).toInt();
+  int hour_int = String(hour).toInt();
+  int minute_int = String(minute).toInt();
+  
+  // Get current schedule slot on power on
+  Serial.print("current_day: ");
+  Serial.println(dow_int);
+
+  Serial.print(hour_int);
+  Serial.print(":");
+  Serial.println(minute_int);
+  
+  for(int i = 0; i < schedule[dow_int].len; i++){
+    Serial.print("time slot");
+    Serial.println(i);
+    Serial.print("Hour: ");
+    Serial.println(schedule[dow_int].times[i].hour);
+    Serial.print("Minute: ");
+    Serial.println(schedule[dow_int].times[i].minute);
+    if((hour_int*60)+minute_int < (schedule[dow_int].times[i].hour*60) + schedule[dow_int].times[i].minute){
+      if(i == 0){
+        Serial.print("i was 0");
+        current_block.day = (dow_int + 6) % 7;
+        current_block.slot = schedule[dow_int - 1].len - 1;
+      } else {
+        Serial.print("i was ");
+        Serial.print(i);
+        current_block.day = dow_int;
+        current_block.slot = i - 1;
+      }
+      break;
+    }
+  }
 }
