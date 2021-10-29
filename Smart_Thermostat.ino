@@ -11,10 +11,13 @@ Smart Thermostat
 #include "Free_Fonts.h"
 #include <Adafruit_FT6206.h>
 #include "DHT.h"
+#include "WiFi.h"
+#include "time.h"
 
 #include "Home_Icon.h"
 #include "Cal_Icon.h"
 #include "Gear_Icon.h"
+#include "secrets.h"
 
 #define DHTPIN 32
 #define DHTTYPE DHT22
@@ -32,12 +35,13 @@ int key_h, button_col;
 uint16_t pen_color = TFT_CYAN;
 
 unsigned long prev_time = 0;
-const long interval = 2000;
+unsigned long prev_time_wifi = 0;
+unsigned long interval = 2000;
+unsigned long wifi_interval = 30000;
 
 float old_t, old_h;
 
 const uint16_t *menu[3] = {Home_Icon, Cal_Icon, Gear_Icon};
-
 char* nav[4] = {"Main","Rooms","Schedule","Settings"};
 
 struct temp_time {
@@ -54,8 +58,15 @@ struct schedule {
 
 const int next_dow[4] = {170, 20, 210, 80};
 const int prev_dow[4] = {30, 20, 70, 80};
-int current_dow = 0;
+const char* ssid = SSID_NAME;
+const char* password = SSID_PASS;
 
+
+const char* ntpServer = "pool.ntp.org";
+const long gmtOffset_sec = -25200;
+const int daylightOffset_sec = 3600;
+
+int current_dow = 0;
 int nav_current = 0;
 
 
@@ -64,6 +75,8 @@ void setup() {
   Serial.begin(115200);
   dht.begin();
 
+  initWiFi();
+  
   // --------------------------------------------------------------------
   // Create a default schedule here. Replace this will a call
   // from ROM first, there should be a way to save your schedule
@@ -115,7 +128,13 @@ void loop() {
     prev_time = current;
     old_t = getDHTTemp(old_t, nav[nav_current]);
     old_h = getDHTHum(old_h, nav[nav_current]);
-    drawWifi(455, 35, 1);
+    drawTime();
+    checkWifi();
+    if((WiFi.status() != WL_CONNECTED) && (current - prev_time_wifi >= wifi_interval)){
+      WiFi.disconnect();
+      WiFi.reconnect();
+      prev_time_wifi = current;
+    }
   }
     
   // Restart loop if the screen hasn't been touched
@@ -193,7 +212,7 @@ void drawNav(char* screen){
   } else if (screen == "Settings"){
     drawSettings();
   }
-  drawWifi(455, 35, 1);
+  checkWifi();
 }
 
 void drawMain(){
@@ -374,5 +393,53 @@ void drawBack(){
     img.fillCircle( start_x + i, start_y, PENRADIUS, TFT_WHITE);
   }
   img.pushSprite(400, 80);
+  img.deleteSprite();
+}
+
+void initWiFi(){
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  while(WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+  }
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+}
+
+void checkWifi(){
+  if(WiFi.status() != WL_CONNECTED){
+    drawWifi(455,35,0);
+    return;
+  }
+  
+  int strength = WiFi.RSSI();
+  if(strength > -50){
+    drawWifi(455, 35, 3);
+  } else if(strength > -70){
+    drawWifi(455, 35, 2);
+  } else {
+    drawWifi(455, 35, 1);
+  }
+}
+
+void drawTime(){
+  struct tm timeinfo;
+  if(!getLocalTime(&timeinfo)){
+    return;
+  }
+  char local_out[33];
+  char now_ampm[3];
+  strftime(local_out,33,"%A, %B %d %I:%M", &timeinfo);
+  strftime(now_ampm,3,"%p", &timeinfo);
+  String ampm = String(now_ampm);
+  ampm.toLowerCase();
+  String full_out = String(local_out) + " ";
+  full_out += ampm;
+  ampm.toLowerCase();
+  img.setTextSize(1);
+  img.setFreeFont(FF26);
+  img.createSprite(380, 40);
+  img.setTextDatum(TR_DATUM);
+  img.drawString(full_out, 380, 10);
+  img.pushSprite(30,0);
   img.deleteSprite();
 }
