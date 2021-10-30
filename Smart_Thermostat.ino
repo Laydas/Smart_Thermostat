@@ -91,7 +91,7 @@ void setup() {
     schedule[i].times[0] = {6,0,22.5};
     schedule[i].times[1] = {8,30,19.5};
     schedule[i].times[2] = {15,30,22.5};
-    schedule[i].times[3] = {23,30,19.5};
+    schedule[i].times[3] = {23,00,19.5};
     schedule[i].len = 4;
   }
   schedule[0].day = dow[0];
@@ -136,7 +136,6 @@ void loop() {
     old_h = getDHTHum(old_h, nav[nav_current]);
     drawTime();
     checkSchedule();
-    drawGoal();
     checkWifi();
     if((WiFi.status() != WL_CONNECTED) && (current - prev_time_wifi >= wifi_interval)){
       WiFi.disconnect();
@@ -227,8 +226,10 @@ void drawMain(){
   for (int i = 0; i < 3; i++){
     tft.pushImage(380, (i+1) * 80, 100, 80, menu[i]);
   }
+  drawTempHeaders();
   drawDHTTemp(old_t);
   drawDHTHum(old_h);
+  drawGoal();
 }
 
 void drawRooms(){
@@ -295,8 +296,7 @@ float getDHTTemp(float old_t, char* screen){
 }
 
 void drawDHTTemp(float t){
-  img.createSprite(265, 60);
-  img.fillSprite(TFT_BLACK);
+  img.createSprite(180, 60);
   img.setTextSize(2);
   img.setTextDatum(ML_DATUM);
   img.setFreeFont(FF26);
@@ -317,7 +317,6 @@ float getDHTHum(float old_h, char* screen){
 
 void drawDHTHum(float h){
   img.createSprite(265, 60);
-  img.fillSprite(TFT_BLACK);
   img.setTextSize(2);
   img.setTextDatum(ML_DATUM);
   img.setFreeFont(FF26);
@@ -452,11 +451,12 @@ void drawTime(){
 
 void drawGoal(){
   String goal_str = String(schedule[current_block.day].times[current_block.slot].temp);
-  img.createSprite(100,60);
-  img.setTextSize(1);
-  img.setTextDatum(MC_DATUM);
-  img.drawString(goal_str,50,30);
-  img.pushSprite(10,60);
+  img.createSprite(180,60);
+  img.setTextSize(2);
+  img.setTextColor(TFT_WHITE);
+  img.setTextDatum(ML_DATUM);
+  img.drawString(goal_str,0,30);
+  img.pushSprite(180,150);
   img.deleteSprite();
 }
 
@@ -470,45 +470,49 @@ void initSchedule(){
   for(int i = 0; i < schedule[tz[0]].len; i++){
     if((tz[1]*60)+tz[2] < (schedule[tz[0]].times[i].hour*60) + schedule[tz[0]].times[i].minute){
       if(i == 0){
-        Serial.print("i was 0");
         current_block.day = (tz[0] + 6) % 7;
         current_block.slot = schedule[tz[0] - 1].len - 1;
+        return;
       } else {
-        Serial.print("i was ");
-        Serial.print(i);
         current_block.day = tz[0];
         current_block.slot = i - 1;
+        return;
       }
-      break;
-    }
+    } 
   }
+  current_block.day = tz[0];
+  current_block.slot = schedule[tz[0]].len - 1;
 }
 
 void checkSchedule(){
-  // current_block.day <0 to 6>
-  // current_block.slot <0 to schedule[dow].len>
   int tz[3];
   getTimeNow(tz);
-  int *next_hour,*next_minute;
+  int next_hour,next_minute;
   if(current_block.slot + 1 == schedule[current_block.day].len){
-    next_hour = &schedule[(current_block.day+1)%7].times[0].hour;
-    next_minute = &schedule[(current_block.day+1)%7].times[0].minute;
+    if((current_block.day + 1) % 7 != tz[0]) return;
+    next_hour = schedule[(current_block.day+1)%7].times[0].hour;
+    next_minute = schedule[(current_block.day+1)%7].times[0].minute;
   } else {
-    next_hour = &schedule[current_block.day].times[current_block.slot+1].hour;
-    next_minute = &schedule[current_block.day].times[current_block.slot+1].minute;
+    next_hour = schedule[current_block.day].times[current_block.slot+1].hour;
+    next_minute = schedule[current_block.day].times[current_block.slot+1].minute;
   }
-  if((*next_hour*60) + *next_minute < (tz[1]*60)+tz[2]){
+  if((next_hour*60) + next_minute <= (tz[1]*60)+tz[2]){
     if(current_block.slot + 1 == schedule[current_block.day].len){
       current_block.day = (current_block.day + 1) % 7;
       current_block.slot = 0;
+      drawGoal();
     } else {
       current_block.slot += 1;
+      drawGoal();
     }
   }
 }
 
 int getTimeNow(int * ar){
   struct tm timeinfo;
+  if(!getLocalTime(&timeinfo)){
+    delay(100);
+  }
   char dow[2];
   char hour[3];
   char minute[3];
@@ -520,4 +524,16 @@ int getTimeNow(int * ar){
   ar[0] = String(dow).toInt();
   ar[1] = String(hour).toInt();
   ar[2] = String(minute).toInt();
+}
+
+void drawTempHeaders(){
+  img.createSprite(360,30);
+  tft.setFreeFont(FMO12);
+  img.setTextSize(1);
+  img.setTextColor(TFT_DARKGREY);
+  img.setTextDatum(ML_DATUM);
+  img.drawString("current",20,15, GFXFF);
+  img.drawString("target", 200, 15, GFXFF);
+  img.pushSprite(0,120);
+  img.deleteSprite();
 }
