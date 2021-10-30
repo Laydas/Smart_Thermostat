@@ -135,6 +135,7 @@ void loop() {
     old_t = getDHTTemp(old_t, nav[nav_current]);
     old_h = getDHTHum(old_h, nav[nav_current]);
     drawTime();
+    checkSchedule();
     drawGoal();
     checkWifi();
     if((WiFi.status() != WL_CONNECTED) && (current - prev_time_wifi >= wifi_interval)){
@@ -464,6 +465,50 @@ void initSchedule(){
   while(!getLocalTime(&timeinfo)){
     delay(100);
   }
+  int tz[3];
+  getTimeNow(tz);
+  for(int i = 0; i < schedule[tz[0]].len; i++){
+    if((tz[1]*60)+tz[2] < (schedule[tz[0]].times[i].hour*60) + schedule[tz[0]].times[i].minute){
+      if(i == 0){
+        Serial.print("i was 0");
+        current_block.day = (tz[0] + 6) % 7;
+        current_block.slot = schedule[tz[0] - 1].len - 1;
+      } else {
+        Serial.print("i was ");
+        Serial.print(i);
+        current_block.day = tz[0];
+        current_block.slot = i - 1;
+      }
+      break;
+    }
+  }
+}
+
+void checkSchedule(){
+  // current_block.day <0 to 6>
+  // current_block.slot <0 to schedule[dow].len>
+  int tz[3];
+  getTimeNow(tz);
+  int *next_hour,*next_minute;
+  if(current_block.slot + 1 == schedule[current_block.day].len){
+    next_hour = &schedule[(current_block.day+1)%7].times[0].hour;
+    next_minute = &schedule[(current_block.day+1)%7].times[0].minute;
+  } else {
+    next_hour = &schedule[current_block.day].times[current_block.slot+1].hour;
+    next_minute = &schedule[current_block.day].times[current_block.slot+1].minute;
+  }
+  if((*next_hour*60) + *next_minute < (tz[1]*60)+tz[2]){
+    if(current_block.slot + 1 == schedule[current_block.day].len){
+      current_block.day = (current_block.day + 1) % 7;
+      current_block.slot = 0;
+    } else {
+      current_block.slot += 1;
+    }
+  }
+}
+
+int getTimeNow(int * ar){
+  struct tm timeinfo;
   char dow[2];
   char hour[3];
   char minute[3];
@@ -472,37 +517,7 @@ void initSchedule(){
   strftime(hour, 3, "%H", &timeinfo);
   strftime(minute, 3, "%M", &timeinfo);
 
-  int dow_int = String(dow).toInt();
-  int hour_int = String(hour).toInt();
-  int minute_int = String(minute).toInt();
-  
-  // Get current schedule slot on power on
-  Serial.print("current_day: ");
-  Serial.println(dow_int);
-
-  Serial.print(hour_int);
-  Serial.print(":");
-  Serial.println(minute_int);
-  
-  for(int i = 0; i < schedule[dow_int].len; i++){
-    Serial.print("time slot");
-    Serial.println(i);
-    Serial.print("Hour: ");
-    Serial.println(schedule[dow_int].times[i].hour);
-    Serial.print("Minute: ");
-    Serial.println(schedule[dow_int].times[i].minute);
-    if((hour_int*60)+minute_int < (schedule[dow_int].times[i].hour*60) + schedule[dow_int].times[i].minute){
-      if(i == 0){
-        Serial.print("i was 0");
-        current_block.day = (dow_int + 6) % 7;
-        current_block.slot = schedule[dow_int - 1].len - 1;
-      } else {
-        Serial.print("i was ");
-        Serial.print(i);
-        current_block.day = dow_int;
-        current_block.slot = i - 1;
-      }
-      break;
-    }
-  }
+  ar[0] = String(dow).toInt();
+  ar[1] = String(hour).toInt();
+  ar[2] = String(minute).toInt();
 }
