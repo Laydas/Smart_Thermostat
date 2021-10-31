@@ -8,8 +8,9 @@ Smart Thermostat
  */
 #include <TFT_eSPI.h> 
 #include <SPI.h>
-#include "Free_Fonts.h"
+#include <Preferences.h>
 #include <Adafruit_FT6206.h>
+#include "Free_Fonts.h"
 #include "DHT.h"
 #include "WiFi.h"
 #include "time.h"
@@ -45,15 +46,15 @@ const uint16_t *menu[3] = {Home_Icon, Cal_Icon, Gear_Icon};
 char* nav[4] = {"Main","Rooms","Schedule","Settings"};
 
 struct temp_time {
-  int hour;
-  int minute;
-  float temp;
+  uint8_t hour;
+  uint8_t minute;
+  float_t temp;
 };
 
 struct schedule {
-  char* day;
+  String day;
   temp_time times[10] = {};
-  int len = 0;
+  uint8_t len = 0;
 } schedule[7];
 
 struct current_block {
@@ -74,34 +75,73 @@ const int daylightOffset_sec = 3600;
 int current_dow = 0;
 int nav_current = 0;
 
+Preferences preferences;
 
 /***********************************************************************************************************************************/
 void setup() {
   Serial.begin(115200);
   dht.begin();
-  
-  // --------------------------------------------------------------------
-  // Create a default schedule here. Replace this will a call
-  // from ROM first, there should be a way to save your schedule
-  // --------------------------------------------------------------------
-  char* dow[7] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
-  // Default schedule
-  for(int i = 1; i < 6; i++){
-    schedule[i].day = dow[i];
-    schedule[i].times[0] = {6,0,22.5};
-    schedule[i].times[1] = {8,30,19.5};
-    schedule[i].times[2] = {15,30,22.5};
-    schedule[i].times[3] = {23,00,19.5};
-    schedule[i].len = 4;
+
+  preferences.begin("schedule",false);
+
+  //readSchedule();
+  char* full_days[7] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
+  String sched_sun = preferences.getString(full_days[0],"");
+  // If the schedule has never been saved then save it on setup
+  if(sched_sun == ""){
+    String temp_sched = "8,0,22;23,0,19.5";
+    preferences.putString(full_days[0],temp_sched);
+    preferences.putString(full_days[6],temp_sched);
+    temp_sched = "6,0,22.5;8,30,19.5;15,30,22.5;23,0,19.5";
+    for(int i = 1; i < 6; i++){
+      preferences.putString(full_days[i],temp_sched);
+    }
+  } else {
+    char* dow[7] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
+    
+    for(int i = 0; i < 7; i++){
+      String get_sched = preferences.getString(full_days[i],"");
+      int slot_count = 0;
+      String t_s = "";
+      String slots[10];
+      for(int s = 0; s < get_sched.length(); s++){
+        if(get_sched[s] == ';'){
+          slots[slot_count] = t_s;
+          //Serial.println(t_s);
+          slot_count ++;
+          t_s = "";
+          continue;
+        }
+        t_s += get_sched[s];
+      }
+      slots[slot_count] = t_s;
+      slot_count++;
+      schedule[i].day = dow[i];
+      int p = 0;
+      for(int s = 0; s < slot_count; s++){
+        int temp_c = 0;
+        String temp_v;
+        for(int s_l = 0; s_l < slots[s].length(); s_l++){
+          if(slots[s][s_l] == ','){
+            if(temp_c == 0){
+              schedule[i].times[s].hour = temp_v.toInt();
+              temp_v = "";
+              temp_c++;
+              continue;
+            } else if(temp_c == 1){
+              schedule[i].times[s].minute = temp_v.toInt();
+              temp_v = "";
+              temp_c++;
+              continue;
+            }
+          }
+          temp_v += slots[s][s_l];
+        }
+        schedule[i].times[s].temp = temp_v.toFloat();
+      }
+      schedule[i].len = slot_count;
+    }
   }
-  schedule[0].day = dow[0];
-  schedule[0].times[0] = {8,0,22};
-  schedule[0].times[1] = {23,0,19.5};
-  schedule[0].len = 2;
-  schedule[6].day = dow[6];
-  schedule[6].times[0] = {8,0,22};
-  schedule[6].times[1] = {23,0,19.5};
-  schedule[6].len = 2;
   // --------------------------------------------------------------------
 
   initWiFi();
