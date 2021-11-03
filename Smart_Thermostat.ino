@@ -4,6 +4,13 @@ Iain Letourneau
 
 ESP32 on the WT32-SC01 development board
 Smart Thermostat
+
+Uses an internally stored schedule to determine what temperature/humidity the house
+should be. Has a DHT22 connected on the outside of the enclosure that feeds temp info
+back to the board.
+
+Controls a furnace by sending a command to turn on or off using PID control to avoid
+overshooting the heating. Also controls the humidifier on the furnace.
  
  */
 #include <TFT_eSPI.h> 
@@ -21,9 +28,12 @@ Smart Thermostat
 #include "secrets.h"
 
 #define DHTPIN 32
-#define DHTTYPE DHT22
+#define RELAY_1 33
+#define RELAY_2 27
+#define DHTTYPE DHT11
 #define PENRADIUS 2
 #define DEG2RAD 0.0174532925
+
 
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -33,8 +43,8 @@ TFT_eSprite img = TFT_eSprite(&tft);
 Adafruit_FT6206 ts = Adafruit_FT6206();
 
 int key_h, button_col;
-uint16_t pen_color = TFT_CYAN;
 
+// Variables for intermittent timing
 unsigned long prev_time = 0;
 unsigned long prev_time_wifi = 0;
 unsigned long interval = 2000;
@@ -45,34 +55,46 @@ float old_t, old_h;
 const uint16_t *menu[3] = {Home_Icon, Cal_Icon, Gear_Icon};
 char* nav[4] = {"Main","Rooms","Schedule","Settings"};
 
-struct temp_time {
-  uint8_t hour;
-  uint8_t minute;
-  float_t temp;
-};
-
+/* 
+  Schedule holds the information about each day of the week and all the
+  configured temperatures. holds 10 individual temperature schedules,
+  times are saved as a 24 hour clock with the target temp for that time.
+*/ 
 struct schedule {
   String day;
-  temp_time times[10] = {};
   uint8_t len = 0;
+  struct temp_time {
+    uint8_t hour;
+    uint8_t minute;
+    float_t temp;
+  } times[10];
+  
 } schedule[7];
 
+/*
+  Keeps track of where within the schedule we are.
+*/
 struct current_block {
   int day;
   int slot;
 } current_block;
 
+/*
+  Configure button placements
+*/
 const int next_dow[4] = {170, 20, 210, 80};
 const int prev_dow[4] = {30, 20, 70, 80};
+
+/*
+  Internet and NTP information
+ */
 const char* ssid = SSID_NAME;
 const char* password = SSID_PASS;
-
-
 const char* ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = -25200;
 const int daylightOffset_sec = 3600;
 
-int current_dow = 0;
+int current_dow;
 int nav_current = 0;
 
 Preferences preferences;
@@ -80,6 +102,8 @@ Preferences preferences;
 /***********************************************************************************************************************************/
 void setup() {
   Serial.begin(115200);
+  pinMode(RELAY_1, OUTPUT);
+  pinMode(RELAY_2, OUTPUT);
   dht.begin();
 
   preferences.begin("schedule",false);
@@ -278,25 +302,24 @@ void drawRooms(){
   tft.setFreeFont(FMO12);
   tft.fillRect(0, 150, 265, 210, TFT_BLACK);
   tft.print("Rooms!");
-  drawBack();
+  drawBack(0);
 }
 
 void drawSchedule(){
-  img.setTextSize(2);
-  img.setFreeFont(FF26);
   img.createSprite(160, 80);
+  mainFont(img);
   img.fillTriangle(0,40,20,20,20,60, TFT_WHITE);
   img.fillTriangle(160,40,140,20,140,60, TFT_WHITE);
   img.setTextDatum(MC_DATUM);
   img.drawString(schedule[current_dow].day, 80, 40);
   img.pushSprite(40,35);
   img.deleteSprite();
+
   
-  img.setTextSize(2);
-  img.setFreeFont(FM9);
   img.setTextDatum(ML_DATUM);
   
   img.createSprite(300,160);
+  tableFont(img);
   for(int i = 0; i < schedule[current_dow].len; i++){
     String temp_str;
     if (schedule[current_dow].times[i].hour < 10){
@@ -314,7 +337,7 @@ void drawSchedule(){
   }
   img.pushSprite(20, 100);
   img.deleteSprite();
-  drawBack();
+  drawBack(0);
 }
 
 void drawSettings(){
@@ -323,7 +346,7 @@ void drawSettings(){
   tft.setFreeFont(FMO12);
   tft.fillRect(0, 150, 265, 210, TFT_BLACK);
   tft.print("Settings!");
-  drawBack();
+  drawBack(0);
 }
 
 // Update the screen with the temperature
@@ -337,12 +360,12 @@ float getDHTTemp(float old_t, char* screen){
 
 void drawDHTTemp(float t){
   img.createSprite(180, 60);
-  img.setTextSize(2);
   img.setTextDatum(ML_DATUM);
-  img.setFreeFont(FF26);
+  
+  mainFont(img);
   String temp = String(t) + " c";
   img.drawString(temp, 5, 30, GFXFF);
-  img.pushSprite(0, 150);
+  img.pushSprite(0, 180);
   img.deleteSprite();
 }
 
@@ -357,14 +380,16 @@ float getDHTHum(float old_h, char* screen){
 
 void drawDHTHum(float h){
   img.createSprite(265, 60);
-  img.setTextSize(2);
   img.setTextDatum(ML_DATUM);
-  img.setFreeFont(FF26);
+  
+  mainFont(img);
   String hum = String(h) + "%";
   img.drawString(hum, 5, 30, GFXFF);
-  img.pushSprite(0, 210);
+  img.pushSprite(0, 240);
   img.deleteSprite();
 }
+
+
 
 //------------------------------------------------
 // x is center X of wifi logo
@@ -421,7 +446,7 @@ void fillArc(int x, int y, int start_angle, int seg_count, int rx, int ry, int w
   }
 }
 
-void drawBack(){
+void drawBack(int angle){
   img.createSprite(80, 80);
   int start_x = 10;
   int start_y = 40;
@@ -450,12 +475,14 @@ void initWiFi(){
   initSchedule();
 }
 
+/*
+  Check the wifi strength and update the display
+ */
 void checkWifi(){
   if(WiFi.status() != WL_CONNECTED){
     drawWifi(455,35,0);
     return;
   }
-  
   int strength = WiFi.RSSI();
   if(strength > -50){
     drawWifi(455, 35, 3);
@@ -480,11 +507,10 @@ void drawTime(){
   String full_out = String(local_out) + " ";
   full_out += ampm;
   ampm.toLowerCase();
-  img.setTextSize(1);
-  img.setFreeFont(FF26);
   img.createSprite(380, 40);
+  headerFont(img);
   img.setTextDatum(TR_DATUM);
-  img.drawString(full_out, 380, 10);
+  img.drawString(full_out, 380, 10, GFXFF);
   img.pushSprite(30,0);
   img.deleteSprite();
 }
@@ -492,11 +518,12 @@ void drawTime(){
 void drawGoal(){
   String goal_str = String(schedule[current_block.day].times[current_block.slot].temp);
   img.createSprite(180,60);
-  img.setTextSize(2);
+  img.setFreeFont(FF26);
   img.setTextColor(TFT_WHITE);
+  img.setTextSize(2);
   img.setTextDatum(ML_DATUM);
   img.drawString(goal_str,0,30);
-  img.pushSprite(180,150);
+  img.pushSprite(180,180);
   img.deleteSprite();
 }
 
@@ -507,6 +534,7 @@ void initSchedule(){
   }
   int tz[3];
   getTimeNow(tz);
+  current_dow = tz[0];
   for(int i = 0; i < schedule[tz[0]].len; i++){
     if((tz[1]*60)+tz[2] < (schedule[tz[0]].times[i].hour*60) + schedule[tz[0]].times[i].minute){
       if(i == 0){
@@ -568,12 +596,39 @@ int getTimeNow(int * ar){
 
 void drawTempHeaders(){
   img.createSprite(360,30);
-  tft.setFreeFont(FMO12);
-  img.setTextSize(1);
-  img.setTextColor(TFT_DARKGREY);
+  secondFont(img);
   img.setTextDatum(ML_DATUM);
   img.drawString("current",20,15, GFXFF);
   img.drawString("target", 200, 15, GFXFF);
-  img.pushSprite(0,120);
+  img.pushSprite(0,150);
   img.deleteSprite();
+}
+
+void mainFont(TFT_eSprite& img){
+  img.setFreeFont(FF26);
+  img.setTextColor(TFT_WHITE);
+  img.setTextSize(2);
+}
+void secondFont(TFT_eSprite& img){
+  img.setFreeFont(FMO12);
+  img.setTextColor(TFT_DARKGREY);
+  img.setTextSize(1);
+}
+void headerFont(TFT_eSprite& img){
+  img.setFreeFont(FF26);
+  img.setTextColor(TFT_WHITE);
+  img.setTextSize(1);
+}
+void tableFont(TFT_eSprite& img){
+  img.setTextSize(2);
+  img.setFreeFont(FM9);
+  img.setTextColor(TFT_WHITE);
+}
+
+void heating(int val){
+  digitalWrite(RELAY_1, val);
+}
+
+void humidity(int val){
+  digitalWrite(RELAY_2, val);
 }
