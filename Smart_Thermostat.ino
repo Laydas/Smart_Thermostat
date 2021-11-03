@@ -44,11 +44,16 @@ Adafruit_FT6206 ts = Adafruit_FT6206();
 
 int key_h, button_col;
 
-// Variables for intermittent timing
-unsigned long prev_time = 0;
-unsigned long prev_time_wifi = 0;
-unsigned long interval = 2000;
-unsigned long wifi_interval = 30000;
+// Keep all the intervals in one object
+struct intervals {
+  unsigned long prev = 0;
+  unsigned long prev_wifi = 0;
+  unsigned long prev_heat = 0;
+  unsigned long intv = 2000;
+  unsigned long intv_wifi = 30000;
+  unsigned long intv_heat = 120000;
+} interval;
+
 
 float old_t, old_h;
 
@@ -74,7 +79,7 @@ struct schedule {
 /*
   Keeps track of where within the schedule we are.
 */
-struct current_block {
+struct CurrentBlock {
   int day;
   int slot;
 } current_block;
@@ -104,69 +109,14 @@ void setup() {
   Serial.begin(115200);
   pinMode(RELAY_1, OUTPUT);
   pinMode(RELAY_2, OUTPUT);
+  heating(false);
+  humidity(false);
+  
   dht.begin();
 
   preferences.begin("schedule",false);
 
-  //readSchedule();
-  char* full_days[7] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
-  String sched_sun = preferences.getString(full_days[0],"");
-  // If the schedule has never been saved then save it on setup
-  if(sched_sun == ""){
-    String temp_sched = "8,0,22;23,0,19.5";
-    preferences.putString(full_days[0],temp_sched);
-    preferences.putString(full_days[6],temp_sched);
-    temp_sched = "6,0,22.5;8,30,19.5;15,30,22.5;23,0,19.5";
-    for(int i = 1; i < 6; i++){
-      preferences.putString(full_days[i],temp_sched);
-    }
-  } else {
-    char* dow[7] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
-    
-    for(int i = 0; i < 7; i++){
-      String get_sched = preferences.getString(full_days[i],"");
-      int slot_count = 0;
-      String t_s = "";
-      String slots[10];
-      for(int s = 0; s < get_sched.length(); s++){
-        if(get_sched[s] == ';'){
-          slots[slot_count] = t_s;
-          //Serial.println(t_s);
-          slot_count ++;
-          t_s = "";
-          continue;
-        }
-        t_s += get_sched[s];
-      }
-      slots[slot_count] = t_s;
-      slot_count++;
-      schedule[i].day = dow[i];
-      int p = 0;
-      for(int s = 0; s < slot_count; s++){
-        int temp_c = 0;
-        String temp_v;
-        for(int s_l = 0; s_l < slots[s].length(); s_l++){
-          if(slots[s][s_l] == ','){
-            if(temp_c == 0){
-              schedule[i].times[s].hour = temp_v.toInt();
-              temp_v = "";
-              temp_c++;
-              continue;
-            } else if(temp_c == 1){
-              schedule[i].times[s].minute = temp_v.toInt();
-              temp_v = "";
-              temp_c++;
-              continue;
-            }
-          }
-          temp_v += slots[s][s_l];
-        }
-        schedule[i].times[s].temp = temp_v.toFloat();
-      }
-      schedule[i].len = slot_count;
-    }
-  }
-  // --------------------------------------------------------------------
+  readSchedule(preferences);
 
   initWiFi();
   
@@ -186,7 +136,7 @@ void setup() {
   key_h = tft.height() / 4;
   button_col = tft.width() - 100;
   
-  drawNav(nav[nav_current]);
+  drawNav(nav[nav_current], current_block);
   
 }
 
@@ -194,17 +144,32 @@ void loop() {
   // Update the onboard temp/humidity every 2 seconds.
   // This might be a bit aggressive.
   unsigned long current = millis();
-  if(current - prev_time >= interval){
-    prev_time = current;
+  if(current - interval.prev >= interval.intv){
+    interval.prev = current;
     old_t = getDHTTemp(old_t, nav[nav_current]);
     old_h = getDHTHum(old_h, nav[nav_current]);
     drawTime();
-    checkSchedule();
+    checkSchedule(current_block);
+    // Turn heating/humidity on/off
+    if(current - interval.prev_heat >= interval.intv_heat){
+      if(old_t < schedule[current_block.day].times[current_block.slot].temp -1){
+        heating(true);
+      } else if(old_t > schedule[current_block.day].times[current_block.slot].temp + 1){
+        heating(false);
+      }
+
+      if(old_h < 35){
+        humidity(true);
+      } else if (old_h > 40){
+        humidity(false);
+      }
+    }
+    
     checkWifi();
-    if((WiFi.status() != WL_CONNECTED) && (current - prev_time_wifi >= wifi_interval)){
+    if((WiFi.status() != WL_CONNECTED) && (current - interval.prev_wifi >= interval.intv_wifi)){
       WiFi.disconnect();
       WiFi.reconnect();
-      prev_time_wifi = current;
+      interval.prev_wifi = current;
     }
   }
     
@@ -248,7 +213,7 @@ void handleTouch(TS_Point p, char* screen){
   }
   
   if(new_nav != nav_current){
-    drawNav(nav[new_nav]);
+    drawNav(nav[new_nav], current_block);
     nav_current = new_nav;
   }
 }
@@ -272,10 +237,10 @@ int getButtonPress(int x, int y){
   }
 }
 
-void drawNav(char* screen){
+void drawNav(char* screen, CurrentBlock &block){
   tft.fillRect(0,40,480,280,TFT_BLACK);
   if (screen == "Main"){
-    drawMain();
+    drawMain(block);
   } else if (screen == "Rooms"){
     drawRooms();
   } else if (screen == "Schedule"){
@@ -286,14 +251,14 @@ void drawNav(char* screen){
   checkWifi();
 }
 
-void drawMain(){
+void drawMain(CurrentBlock &block){
   for (int i = 0; i < 3; i++){
     tft.pushImage(380, (i+1) * 80, 100, 80, menu[i]);
   }
   drawTempHeaders();
   drawDHTTemp(old_t);
   drawDHTHum(old_h);
-  drawGoal();
+  drawGoal(block);
 }
 
 void drawRooms(){
@@ -472,7 +437,7 @@ void initWiFi(){
     delay(1000);
   }
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  initSchedule();
+  initSchedule(current_block);
 }
 
 /*
@@ -507,16 +472,16 @@ void drawTime(){
   String full_out = String(local_out) + " ";
   full_out += ampm;
   ampm.toLowerCase();
-  img.createSprite(380, 40);
+  img.createSprite(400, 40);
   headerFont(img);
   img.setTextDatum(TR_DATUM);
-  img.drawString(full_out, 380, 10, GFXFF);
-  img.pushSprite(30,0);
+  img.drawString(full_out, 400, 10, GFXFF);
+  img.pushSprite(10,0);
   img.deleteSprite();
 }
 
-void drawGoal(){
-  String goal_str = String(schedule[current_block.day].times[current_block.slot].temp);
+void drawGoal(CurrentBlock &block){
+  String goal_str = String(schedule[block.day].times[block.slot].temp);
   img.createSprite(180,60);
   img.setFreeFont(FF26);
   img.setTextColor(TFT_WHITE);
@@ -527,7 +492,7 @@ void drawGoal(){
   img.deleteSprite();
 }
 
-void initSchedule(){
+void initSchedule(CurrentBlock &block){
   struct tm timeinfo;
   while(!getLocalTime(&timeinfo)){
     delay(100);
@@ -538,40 +503,40 @@ void initSchedule(){
   for(int i = 0; i < schedule[tz[0]].len; i++){
     if((tz[1]*60)+tz[2] < (schedule[tz[0]].times[i].hour*60) + schedule[tz[0]].times[i].minute){
       if(i == 0){
-        current_block.day = (tz[0] + 6) % 7;
-        current_block.slot = schedule[tz[0] - 1].len - 1;
+        block.day = (tz[0] + 6) % 7;
+        block.slot = schedule[tz[0] - 1].len - 1;
         return;
       } else {
-        current_block.day = tz[0];
-        current_block.slot = i - 1;
+        block.day = tz[0];
+        block.slot = i - 1;
         return;
       }
     } 
   }
-  current_block.day = tz[0];
-  current_block.slot = schedule[tz[0]].len - 1;
+  block.day = tz[0];
+  block.slot = schedule[tz[0]].len - 1;
 }
 
-void checkSchedule(){
+void checkSchedule(CurrentBlock &block){
   int tz[3];
   getTimeNow(tz);
   int next_hour,next_minute;
-  if(current_block.slot + 1 == schedule[current_block.day].len){
-    if((current_block.day + 1) % 7 != tz[0]) return;
-    next_hour = schedule[(current_block.day+1)%7].times[0].hour;
-    next_minute = schedule[(current_block.day+1)%7].times[0].minute;
+  if(block.slot + 1 == schedule[block.day].len){
+    if((block.day + 1) % 7 != tz[0]) return;
+    next_hour = schedule[(block.day+1)%7].times[0].hour;
+    next_minute = schedule[(block.day+1)%7].times[0].minute;
   } else {
-    next_hour = schedule[current_block.day].times[current_block.slot+1].hour;
-    next_minute = schedule[current_block.day].times[current_block.slot+1].minute;
+    next_hour = schedule[block.day].times[block.slot+1].hour;
+    next_minute = schedule[block.day].times[block.slot+1].minute;
   }
   if((next_hour*60) + next_minute <= (tz[1]*60)+tz[2]){
-    if(current_block.slot + 1 == schedule[current_block.day].len){
-      current_block.day = (current_block.day + 1) % 7;
-      current_block.slot = 0;
-      drawGoal();
+    if(block.slot + 1 == schedule[block.day].len){
+      block.day = (block.day + 1) % 7;
+      block.slot = 0;
+      drawGoal(block);
     } else {
-      current_block.slot += 1;
-      drawGoal();
+      block.slot += 1;
+      drawGoal(block);
     }
   }
 }
@@ -625,10 +590,80 @@ void tableFont(TFT_eSprite& img){
   img.setTextColor(TFT_WHITE);
 }
 
-void heating(int val){
-  digitalWrite(RELAY_1, val);
+void heating(boolean val){
+  digitalWrite(RELAY_1, !val);
 }
 
-void humidity(int val){
-  digitalWrite(RELAY_2, val);
+void humidity(boolean val){
+  digitalWrite(RELAY_2, !val);
+}
+
+void writeSchedule(Preferences &prefs, char* days[]){
+  String temp_sched = "8,0,22;23,0,19.5";
+  prefs.putString(days[0],temp_sched);
+  prefs.putString(days[6],temp_sched);
+  temp_sched = "6,0,22.5;8,30,19.5;15,30,22.5;23,0,19.5";
+  for(int i = 1; i < 6; i++){
+    prefs.putString(days[i],temp_sched);
+  }
+}
+
+void readSchedule(Preferences& prefs){
+  char* full_days[7] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
+  String sched_sun = prefs.getString(full_days[0],"");
+  
+  // If the schedule has never been saved then save it on setup
+  if(sched_sun == ""){
+    writeSchedule(prefs, full_days);
+  } else {
+    /* 
+       Read the schedule from memory and put it into the schedule object
+       schedules are saved as a non-nested key:value json like object
+       Format of preferences schedule as below
+       "<Day_of_week>": [ { <hour(int)>, <minute(int)>, <temperature(float)> }, {}]
+    */
+    char* dow[7] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
+    
+    for(int i = 0; i < 7; i++){
+      String get_sched = prefs.getString(full_days[i],"");
+      int slot_count = 0;
+      String t_s = "";
+      String slots[10];
+      for(int s = 0; s < get_sched.length(); s++){
+        if(get_sched[s] == ';'){
+          slots[slot_count] = t_s;
+          slot_count ++;
+          t_s = "";
+          continue;
+        }
+        t_s += get_sched[s];
+      }
+      slots[slot_count] = t_s;
+      slot_count++;
+      schedule[i].day = dow[i];
+      int p = 0;
+      for(int s = 0; s < slot_count; s++){
+        int temp_c = 0;
+        String temp_v;
+        for(int s_l = 0; s_l < slots[s].length(); s_l++){
+          if(slots[s][s_l] == ','){
+            if(temp_c == 0){
+              schedule[i].times[s].hour = temp_v.toInt();
+              temp_v = "";
+              temp_c++;
+              continue;
+            } else if(temp_c == 1){
+              schedule[i].times[s].minute = temp_v.toInt();
+              temp_v = "";
+              temp_c++;
+              continue;
+            }
+          }
+          temp_v += slots[s][s_l];
+        }
+        schedule[i].times[s].temp = temp_v.toFloat();
+      }
+      schedule[i].len = slot_count;
+    }
+  }
 }
