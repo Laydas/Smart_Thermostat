@@ -12,16 +12,16 @@ back to the board.
 Controls a furnace by sending a command to turn on or off using PID control to avoid
 overshooting the heating. Also controls the humidifier on the furnace.
  
- */
+*/
 #include <TFT_eSPI.h> 
 #include <SPI.h>
-#include <Preferences.h>
 #include <Adafruit_FT6206.h>
 #include "Free_Fonts.h"
 #include "DHT.h"
 #include "WiFi.h"
 #include "time.h"
 
+#include "Thermostat.h"
 #include "Home_Icon.h"
 #include "Cal_Icon.h"
 #include "Gear_Icon.h"
@@ -30,10 +30,9 @@ overshooting the heating. Also controls the humidifier on the furnace.
 #define DHTPIN 32
 #define RELAY_1 33
 #define RELAY_2 27
-#define DHTTYPE DHT11
+#define DHTTYPE DHT22
 #define PENRADIUS 2
 #define DEG2RAD 0.0174532925
-
 
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -54,6 +53,7 @@ struct intervals {
   unsigned long intv_heat = 120000;
 } interval;
 
+Thermostat thermostat = Thermostat(RELAY_1, RELAY_2);
 
 float old_t, old_h;
 
@@ -65,24 +65,12 @@ char* nav[4] = {"Main","Rooms","Schedule","Settings"};
   configured temperatures. holds 10 individual temperature schedules,
   times are saved as a 24 hour clock with the target temp for that time.
 */ 
-struct schedule {
-  String day;
-  uint8_t len = 0;
-  struct temp_time {
-    uint8_t hour;
-    uint8_t minute;
-    float_t temp;
-  } times[10];
-  
-} schedule[7];
+
 
 /*
   Keeps track of where within the schedule we are.
 */
-struct CurrentBlock {
-  int day;
-  int slot;
-} current_block;
+
 
 /*
   Configure button placements
@@ -102,23 +90,19 @@ const int daylightOffset_sec = 3600;
 int current_dow;
 int nav_current = 0;
 
-Preferences preferences;
-
 /***********************************************************************************************************************************/
 void setup() {
   Serial.begin(115200);
-  pinMode(RELAY_1, OUTPUT);
-  pinMode(RELAY_2, OUTPUT);
-  heating(false);
-  humidity(false);
+
+  initWiFi();
+  
+  thermostat.init();
   
   dht.begin();
 
-  preferences.begin("schedule",false);
 
-  readSchedule(preferences);
 
-  initWiFi();
+  
   
   // Pins 18/19 are SDA/SCL for touch sensor on this device
   // 40 is a touch threshold
@@ -136,8 +120,7 @@ void setup() {
   key_h = tft.height() / 4;
   button_col = tft.width() - 100;
   
-  drawNav(nav[nav_current], current_block);
-  
+  drawNav(nav[nav_current]);
 }
 
 void loop() {
@@ -149,12 +132,12 @@ void loop() {
     old_t = getDHTTemp(old_t, nav[nav_current]);
     old_h = getDHTHum(old_h, nav[nav_current]);
     drawTime();
-    checkSchedule(current_block);
+    thermostat.checkSchedule();
     // Turn heating/humidity on/off
     if(current - interval.prev_heat >= interval.intv_heat){
-      if(old_t < schedule[current_block.day].times[current_block.slot].temp -1){
+      if(old_t < thermostat.goalTemp() -1){
         heating(true);
-      } else if(old_t > schedule[current_block.day].times[current_block.slot].temp + 1){
+      } else if(old_t > thermostat.goalTemp() + 1){
         heating(false);
       }
 
@@ -191,11 +174,11 @@ void handleTouch(TS_Point p, char* screen){
   int button = getButtonPress(x, y);
   
   if ((x > prev_dow[0]) && (x < prev_dow[2]) && (y > prev_dow[1]) && y < prev_dow[3]){
-    current_dow = (current_dow + 6) % 7;
+    thermostat.prevDaySched();
     drawSchedule();
   }
   if (x > next_dow[0] && x < next_dow[2] && y > next_dow[1] && y < next_dow[3]){
-    current_dow = (current_dow + 1) % 7;
+    thermostat.nextDaySched();
     drawSchedule();
   }
   if (screen == "Main"){
@@ -213,7 +196,7 @@ void handleTouch(TS_Point p, char* screen){
   }
   
   if(new_nav != nav_current){
-    drawNav(nav[new_nav], current_block);
+    drawNav(nav[new_nav]);
     nav_current = new_nav;
   }
 }
@@ -237,10 +220,10 @@ int getButtonPress(int x, int y){
   }
 }
 
-void drawNav(char* screen, CurrentBlock &block){
+void drawNav(char* screen){
   tft.fillRect(0,40,480,280,TFT_BLACK);
   if (screen == "Main"){
-    drawMain(block);
+    drawMain();
   } else if (screen == "Rooms"){
     drawRooms();
   } else if (screen == "Schedule"){
@@ -251,14 +234,14 @@ void drawNav(char* screen, CurrentBlock &block){
   checkWifi();
 }
 
-void drawMain(CurrentBlock &block){
+void drawMain(){
   for (int i = 0; i < 3; i++){
     tft.pushImage(380, (i+1) * 80, 100, 80, menu[i]);
   }
   drawTempHeaders();
   drawDHTTemp(old_t);
   drawDHTHum(old_h);
-  drawGoal(block);
+  drawGoal();
 }
 
 void drawRooms(){
@@ -276,7 +259,7 @@ void drawSchedule(){
   img.fillTriangle(0,40,20,20,20,60, TFT_WHITE);
   img.fillTriangle(160,40,140,20,140,60, TFT_WHITE);
   img.setTextDatum(MC_DATUM);
-  img.drawString(schedule[current_dow].day, 80, 40);
+  img.drawString(thermostat.getShortDow(), 80, 40);
   img.pushSprite(40,35);
   img.deleteSprite();
 
@@ -285,18 +268,8 @@ void drawSchedule(){
   
   img.createSprite(300,160);
   tableFont(img);
-  for(int i = 0; i < schedule[current_dow].len; i++){
-    String temp_str;
-    if (schedule[current_dow].times[i].hour < 10){
-      temp_str += "0";
-    }
-    temp_str += String(schedule[current_dow].times[i].hour) + ":";
-    if (schedule[current_dow].times[i].minute < 10){
-      temp_str += "0";
-    }
-    temp_str += String(schedule[current_dow].times[i].minute);
-    temp_str += "  " + String(schedule[current_dow].times[i].temp);
-    temp_str += "c";
+  for(int i = 0; i < thermostat.getSlots(); i++){
+    String temp_str = thermostat.getSlotInfo(i);
     img.drawString(temp_str, 0, 20+(i*40), GFXFF);
     img.drawCircle(265,10+(i*40),3,TFT_WHITE);
   }
@@ -437,7 +410,6 @@ void initWiFi(){
     delay(1000);
   }
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  initSchedule(current_block);
 }
 
 /*
@@ -480,85 +452,6 @@ void drawTime(){
   img.deleteSprite();
 }
 
-void drawGoal(CurrentBlock &block){
-  String goal_str = String(schedule[block.day].times[block.slot].temp);
-  img.createSprite(180,60);
-  img.setFreeFont(FF26);
-  img.setTextColor(TFT_WHITE);
-  img.setTextSize(2);
-  img.setTextDatum(ML_DATUM);
-  img.drawString(goal_str,0,30);
-  img.pushSprite(180,180);
-  img.deleteSprite();
-}
-
-void initSchedule(CurrentBlock &block){
-  struct tm timeinfo;
-  while(!getLocalTime(&timeinfo)){
-    delay(100);
-  }
-  int tz[3];
-  getTimeNow(tz);
-  current_dow = tz[0];
-  for(int i = 0; i < schedule[tz[0]].len; i++){
-    if((tz[1]*60)+tz[2] < (schedule[tz[0]].times[i].hour*60) + schedule[tz[0]].times[i].minute){
-      if(i == 0){
-        block.day = (tz[0] + 6) % 7;
-        block.slot = schedule[tz[0] - 1].len - 1;
-        return;
-      } else {
-        block.day = tz[0];
-        block.slot = i - 1;
-        return;
-      }
-    } 
-  }
-  block.day = tz[0];
-  block.slot = schedule[tz[0]].len - 1;
-}
-
-void checkSchedule(CurrentBlock &block){
-  int tz[3];
-  getTimeNow(tz);
-  int next_hour,next_minute;
-  if(block.slot + 1 == schedule[block.day].len){
-    if((block.day + 1) % 7 != tz[0]) return;
-    next_hour = schedule[(block.day+1)%7].times[0].hour;
-    next_minute = schedule[(block.day+1)%7].times[0].minute;
-  } else {
-    next_hour = schedule[block.day].times[block.slot+1].hour;
-    next_minute = schedule[block.day].times[block.slot+1].minute;
-  }
-  if((next_hour*60) + next_minute <= (tz[1]*60)+tz[2]){
-    if(block.slot + 1 == schedule[block.day].len){
-      block.day = (block.day + 1) % 7;
-      block.slot = 0;
-      drawGoal(block);
-    } else {
-      block.slot += 1;
-      drawGoal(block);
-    }
-  }
-}
-
-int getTimeNow(int * ar){
-  struct tm timeinfo;
-  if(!getLocalTime(&timeinfo)){
-    delay(100);
-  }
-  char dow[2];
-  char hour[3];
-  char minute[3];
-  
-  strftime(dow, 2, "%w", &timeinfo);
-  strftime(hour, 3, "%H", &timeinfo);
-  strftime(minute, 3, "%M", &timeinfo);
-
-  ar[0] = String(dow).toInt();
-  ar[1] = String(hour).toInt();
-  ar[2] = String(minute).toInt();
-}
-
 void drawTempHeaders(){
   img.createSprite(360,30);
   secondFont(img);
@@ -598,72 +491,14 @@ void humidity(boolean val){
   digitalWrite(RELAY_2, !val);
 }
 
-void writeSchedule(Preferences &prefs, char* days[]){
-  String temp_sched = "8,0,22;23,0,19.5";
-  prefs.putString(days[0],temp_sched);
-  prefs.putString(days[6],temp_sched);
-  temp_sched = "6,0,22.5;8,30,19.5;15,30,22.5;23,0,19.5";
-  for(int i = 1; i < 6; i++){
-    prefs.putString(days[i],temp_sched);
-  }
-}
-
-void readSchedule(Preferences& prefs){
-  char* full_days[7] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
-  String sched_sun = prefs.getString(full_days[0],"");
-  
-  // If the schedule has never been saved then save it on setup
-  if(sched_sun == ""){
-    writeSchedule(prefs, full_days);
-  } else {
-    /* 
-       Read the schedule from memory and put it into the schedule object
-       schedules are saved as a non-nested key:value json like object
-       Format of preferences schedule as below
-       "<Day_of_week>": [ { <hour(int)>, <minute(int)>, <temperature(float)> }, {}]
-    */
-    char* dow[7] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
-    
-    for(int i = 0; i < 7; i++){
-      String get_sched = prefs.getString(full_days[i],"");
-      int slot_count = 0;
-      String t_s = "";
-      String slots[10];
-      for(int s = 0; s < get_sched.length(); s++){
-        if(get_sched[s] == ';'){
-          slots[slot_count] = t_s;
-          slot_count ++;
-          t_s = "";
-          continue;
-        }
-        t_s += get_sched[s];
-      }
-      slots[slot_count] = t_s;
-      slot_count++;
-      schedule[i].day = dow[i];
-      int p = 0;
-      for(int s = 0; s < slot_count; s++){
-        int temp_c = 0;
-        String temp_v;
-        for(int s_l = 0; s_l < slots[s].length(); s_l++){
-          if(slots[s][s_l] == ','){
-            if(temp_c == 0){
-              schedule[i].times[s].hour = temp_v.toInt();
-              temp_v = "";
-              temp_c++;
-              continue;
-            } else if(temp_c == 1){
-              schedule[i].times[s].minute = temp_v.toInt();
-              temp_v = "";
-              temp_c++;
-              continue;
-            }
-          }
-          temp_v += slots[s][s_l];
-        }
-        schedule[i].times[s].temp = temp_v.toFloat();
-      }
-      schedule[i].len = slot_count;
-    }
-  }
+void drawGoal(){
+  String goal_str = String(thermostat.goalTemp());
+  img.createSprite(180,60);
+  img.setFreeFont(FF26);
+  img.setTextColor(TFT_WHITE);
+  img.setTextSize(2);
+  img.setTextDatum(ML_DATUM);
+  img.drawString(goal_str,0,30);
+  img.pushSprite(180,180);
+  img.deleteSprite();
 }
