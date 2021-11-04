@@ -30,6 +30,8 @@ class Thermostat {
     int screen_dow;
     int day;
     int slot;
+    void nextDaySched();
+    void prevDaySched();
     Thermostat(int heatPin, int humdPin);
     String getSlotInfo(int slot);
     int getSlots();
@@ -104,8 +106,6 @@ float Thermostat::goalTemp(){
 Thermostat::Thermostat(int heatPin, int humdPin){
   heat = heatPin;
   humd = humdPin;
-  preferences.begin("schedule",false);
-  readSchedule(preferences);
 }
 
 void Thermostat::init(){
@@ -113,6 +113,9 @@ void Thermostat::init(){
   pinMode(humd, OUTPUT);
   digitalWrite(heat, HIGH);
   digitalWrite(humd, HIGH);
+  preferences.begin("schedule",false);
+  readSchedule(preferences);
+  initSchedule();
 }
 
 void Thermostat::readSchedule(Preferences& prefs){
@@ -178,14 +181,15 @@ void Thermostat::checkSchedule(){
   int next_hour,next_minute;
   
   if(slot + 1 == schedule[day].len){
-    if((day + 1) % 7 != tz[0]) return;
-    next_hour = schedule[(day+1)%7].times[0].hour;
-    next_minute = schedule[(day+1)%7].times[0].minute;
+    if( (day + 1) % 7 != tz[0]) 
+      return;
+    next_hour = schedule[(day + 1) % 7].times[0].hour;
+    next_minute = schedule[(day + 1) % 7].times[0].minute;
   } else {
-    next_hour = schedule[day].times[slot+1].hour;
-    next_minute = schedule[day].times[slot+1].minute;
+    next_hour = schedule[day].times[slot + 1].hour;
+    next_minute = schedule[day].times[slot + 1].minute;
   }
-  if((next_hour*60) + next_minute <= (tz[1]*60)+tz[2]){
+  if( (next_hour * 60) + next_minute <= (tz[1] * 60) + tz[2]){
     if(slot + 1 == schedule[day].len){
       day = (day + 1) % 7;
       slot = 0; 
@@ -222,4 +226,12 @@ int Thermostat::getTimeNow(int * ar){
   ar[1] = String(hour).toInt();
   ar[2] = String(minute).toInt();
 }
+void Thermostat::prevDaySched(){
+  screen_dow = (screen_dow + 6) % 7;
+}
+
+void Thermostat::nextDaySched(){
+  screen_dow = (screen_dow + 1) % 7;
+}
+
 #endif

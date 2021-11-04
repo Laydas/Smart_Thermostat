@@ -174,11 +174,11 @@ void handleTouch(TS_Point p, char* screen){
   int button = getButtonPress(x, y);
   
   if ((x > prev_dow[0]) && (x < prev_dow[2]) && (y > prev_dow[1]) && y < prev_dow[3]){
-    current_dow = (current_dow + 6) % 7;
+    thermostat.prevDaySched();
     drawSchedule();
   }
   if (x > next_dow[0] && x < next_dow[2] && y > next_dow[1] && y < next_dow[3]){
-    current_dow = (current_dow + 1) % 7;
+    thermostat.nextDaySched();
     drawSchedule();
   }
   if (screen == "Main"){
