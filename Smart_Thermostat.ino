@@ -121,9 +121,9 @@ void loop() {
     // Turn heating/humidity on/off
     // Move this into thermostat class
     if(current - interval.prev_heat >= interval.intv_heat){
-      if(old_t < thermostat.goalTemp() -1){
+      if(old_t < thermostat.getGoalTemp() -1){
         thermostat.setHeating(true);
-      } else if(old_t > thermostat.goalTemp() + 1){
+      } else if(old_t > thermostat.getGoalTemp() + 1){
         thermostat.setHeating(false);
       }
 
@@ -254,7 +254,7 @@ void drawSchedule(){
   
   img.createSprite(300,160);
   tableFont(img);
-  for(int i = 0; i < thermostat.getSlots(); i++){
+  for(int i = 0; i < thermostat.getSlotCount(); i++){
     String temp_str = thermostat.getSlotInfo(i);
     img.drawString(temp_str, 0, 20+(i*40), GFXFF);
     img.drawCircle(265,10+(i*40),3,TFT_WHITE);
@@ -469,7 +469,7 @@ void tableFont(TFT_eSprite& img){
 }
 
 void drawGoal(){
-  String goal_str = String(thermostat.goalTemp());
+  String goal_str = String(thermostat.getGoalTemp());
   img.createSprite(180,60);
   img.setFreeFont(FF26);
   img.setTextColor(TFT_WHITE);
