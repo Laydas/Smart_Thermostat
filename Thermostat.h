@@ -3,52 +3,71 @@
 
 #include <Preferences.h>
 
+/**
+ * Thermostat holds all the functions relevant to a thermostat.
+ * Holds a configurable schedule, controls heating and humidity
+ * 
+ * @param <int> heating relay pin, <int> humidity relay pin
+ */
+
 class Thermostat {
   private:
-    char* full_days[7] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
+    boolean heat_on = false;
+    boolean humd_on = false;
+    float target_humidity;
     char* dow[7] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
+    char* full_days[7] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
     int heat;
     int humd;
 	  Preferences preferences;
-    struct schedule {
+
+    /**
+     * Schedule holds the day, number of schedule slots, and schedulable slots
+     * Slots contains the hour, minute, and temperature setting for each slot
+     */
+    struct Schedule {
       String day;
       uint8_t len = 0;
-      struct temp_time {
+      struct Slot {
         uint8_t hour;
         uint8_t minute;
         float_t temp;
-      } times[10];
-    } schedule[7];
-  
-    struct CurrentBlock {
-      int day;
-      int slot;
-    } current_block;
+      } Slot[10]; // Maximum 10 slots
+    } Schedule[7]; // 7 days of the week
+
     void initSchedule();
 
   public:
-    int screen_dow;
     int day;
+    int screen_dow;
     int slot;
-    void nextDaySched();
-    void prevDaySched();
+
     Thermostat(int heatPin, int humdPin);
-    String getSlotInfo(int slot);
-    int getSlots();
     char* getShortDow();
     float goalTemp();
+    int getSlots();
+    int getTimeNow(int * ar);
+    String getSlotInfo(int slot);
     
+    void begin();
+    
+    void prevDisplayDay();
+    void nextDisplayDay();
+    void checkSchedule();
+    void loadSchedule(Preferences& prefs);
+    void createSchedule(Preferences &prefs);
+    void setHeating(boolean val);
+    void setHumidity(boolean val);
+    void keepTemperature(float temp);
+    void keepHumidity(float humd);
+    void setTargetHumidity(float target);
+
     int getSlot(){
-      return current_block.slot;
+      return slot;
     }
     int getDay(){
-      return current_block.day;
-    }
-    void init();
-    void readSchedule(Preferences& prefs);
-    void checkSchedule();
-    void writeSchedule(Preferences &prefs, char* days[]);
-    int getTimeNow(int * ar);
+      return day;
+    } 
 };
 
 void Thermostat::initSchedule(){
@@ -59,11 +78,11 @@ void Thermostat::initSchedule(){
   int tz[3];
   getTimeNow(tz);
   screen_dow = tz[0];
-  for(int i = 0; i < schedule[tz[0]].len; i++){
-    if((tz[1]*60)+tz[2] < (schedule[tz[0]].times[i].hour*60) + schedule[tz[0]].times[i].minute){
+  for(int i = 0; i < Schedule[tz[0]].len; i++){
+    if((tz[1]*60)+tz[2] < (Schedule[tz[0]].Slot[i].hour*60) + Schedule[tz[0]].Slot[i].minute){
       if(i == 0){
         day = (tz[0] + 6) % 7;
-        slot = schedule[tz[0] - 1].len - 1;
+        slot = Schedule[tz[0] - 1].len - 1;
         return;
       } else {
         day = tz[0];
@@ -73,26 +92,26 @@ void Thermostat::initSchedule(){
     } 
   }
   day = tz[0];
-  slot = schedule[tz[0]].len - 1;
+  slot = Schedule[tz[0]].len - 1;
 }
 
 String Thermostat::getSlotInfo(int slot){
   String temp_str;
-  if (schedule[screen_dow].times[slot].hour < 10){
+  if (Schedule[screen_dow].Slot[slot].hour < 10){
     temp_str += "0";
   }
-  temp_str += String(schedule[screen_dow].times[slot].hour) + ":";
-  if (schedule[screen_dow].times[slot].minute < 10){
+  temp_str += String(Schedule[screen_dow].Slot[slot].hour) + ":";
+  if (Schedule[screen_dow].Slot[slot].minute < 10){
     temp_str += "0";
   }
-  temp_str += String(schedule[screen_dow].times[slot].minute);
-  temp_str += "  " + String(schedule[screen_dow].times[slot].temp);
+  temp_str += String(Schedule[screen_dow].Slot[slot].minute);
+  temp_str += "  " + String(Schedule[screen_dow].Slot[slot].temp);
   temp_str += "c";
   return temp_str;
 }
 
 int Thermostat::getSlots(){
-  return schedule[screen_dow].len;
+  return Schedule[screen_dow].len;
 }
 
 char* Thermostat::getShortDow(){
@@ -100,7 +119,7 @@ char* Thermostat::getShortDow(){
 }
 
 float Thermostat::goalTemp(){
-  return schedule[day].times[slot].temp;
+  return Schedule[day].Slot[slot].temp;
 }
 
 Thermostat::Thermostat(int heatPin, int humdPin){
@@ -108,22 +127,22 @@ Thermostat::Thermostat(int heatPin, int humdPin){
   humd = humdPin;
 }
 
-void Thermostat::init(){
+void Thermostat::begin(){
   pinMode(heat, OUTPUT);
   pinMode(humd, OUTPUT);
   digitalWrite(heat, HIGH);
   digitalWrite(humd, HIGH);
   preferences.begin("schedule",false);
-  readSchedule(preferences);
+  loadSchedule(preferences);
   initSchedule();
 }
 
-void Thermostat::readSchedule(Preferences& prefs){
+void Thermostat::loadSchedule(Preferences& prefs){
   String sched_sun = prefs.getString(full_days[0],"");
 
   // If the schedule has never been saved then save it on setup
   if(sched_sun == ""){
-    writeSchedule(prefs, full_days);
+    createSchedule(prefs);
   } else {
     /* 
        Read the schedule from memory and put it into the schedule object
@@ -147,7 +166,7 @@ void Thermostat::readSchedule(Preferences& prefs){
       }
       slots[slot_count] = t_s;
       slot_count++;
-      schedule[i].day = dow[i];
+      Schedule[i].day = dow[i];
       int p = 0;
       for(int s = 0; s < slot_count; s++){
         int temp_c = 0;
@@ -155,12 +174,12 @@ void Thermostat::readSchedule(Preferences& prefs){
         for(int s_l = 0; s_l < slots[s].length(); s_l++){
           if(slots[s][s_l] == ','){
             if(temp_c == 0){
-              schedule[i].times[s].hour = temp_v.toInt();
+              Schedule[i].Slot[s].hour = temp_v.toInt();
               temp_v = "";
               temp_c++;
               continue;
             } else if(temp_c == 1){
-              schedule[i].times[s].minute = temp_v.toInt();
+              Schedule[i].Slot[s].minute = temp_v.toInt();
               temp_v = "";
               temp_c++;
               continue;
@@ -168,9 +187,9 @@ void Thermostat::readSchedule(Preferences& prefs){
           }
           temp_v += slots[s][s_l];
         }
-        schedule[i].times[s].temp = temp_v.toFloat();
+        Schedule[i].Slot[s].temp = temp_v.toFloat();
       }
-      schedule[i].len = slot_count;
+      Schedule[i].len = slot_count;
     }
   }
 }
@@ -180,17 +199,17 @@ void Thermostat::checkSchedule(){
   getTimeNow(tz);
   int next_hour,next_minute;
   
-  if(slot + 1 == schedule[day].len){
+  if(slot + 1 == Schedule[day].len){
     if( (day + 1) % 7 != tz[0]) 
       return;
-    next_hour = schedule[(day + 1) % 7].times[0].hour;
-    next_minute = schedule[(day + 1) % 7].times[0].minute;
+    next_hour = Schedule[(day + 1) % 7].Slot[0].hour;
+    next_minute = Schedule[(day + 1) % 7].Slot[0].minute;
   } else {
-    next_hour = schedule[day].times[slot + 1].hour;
-    next_minute = schedule[day].times[slot + 1].minute;
+    next_hour = Schedule[day].Slot[slot + 1].hour;
+    next_minute = Schedule[day].Slot[slot + 1].minute;
   }
   if( (next_hour * 60) + next_minute <= (tz[1] * 60) + tz[2]){
-    if(slot + 1 == schedule[day].len){
+    if(slot + 1 == Schedule[day].len){
       day = (day + 1) % 7;
       slot = 0; 
     } else {
@@ -199,24 +218,33 @@ void Thermostat::checkSchedule(){
   }
 }
 
-void Thermostat::writeSchedule(Preferences &prefs, char* days[]){
+/**
+ * Write the default schedule to long term storage
+ */
+void Thermostat::createSchedule(Preferences &prefs){
   String temp_sched = "8,0,22;23,0,19.5";
-  prefs.putString(days[0],temp_sched);
-  prefs.putString(days[6],temp_sched);
+  prefs.putString(full_days[0],temp_sched);
+  prefs.putString(full_days[6],temp_sched);
   temp_sched = "6,0,22.5;8,30,19.5;15,30,22.5;23,0,19.5";
   for(int i = 1; i < 6; i++){
-    prefs.putString(days[i],temp_sched);
+    prefs.putString(full_days[i],temp_sched);
   }
 }
 
+/**
+ * Get the current timestamp as an integer array
+ * 
+ * @param an int array [3]
+ * @return passes day, hour, minute as int into the received array
+ */
 int Thermostat::getTimeNow(int * ar){
   struct tm timeinfo;
   if(!getLocalTime(&timeinfo)){
     delay(100);
   }
-  char dow[2];
-  char hour[3];
-  char minute[3];
+  char dow[2]; // 0 - 6
+  char hour[3]; // 0 - 23
+  char minute[3]; // 0 - 59
   
   strftime(dow, 2, "%w", &timeinfo);
   strftime(hour, 3, "%H", &timeinfo);
@@ -226,12 +254,52 @@ int Thermostat::getTimeNow(int * ar){
   ar[1] = String(hour).toInt();
   ar[2] = String(minute).toInt();
 }
-void Thermostat::prevDaySched(){
+
+void Thermostat::prevDisplayDay(){
   screen_dow = (screen_dow + 6) % 7;
 }
 
-void Thermostat::nextDaySched(){
+void Thermostat::nextDisplayDay(){
   screen_dow = (screen_dow + 1) % 7;
+}
+
+void Thermostat::setHeating(boolean val){
+  digitalWrite(heat, !val);
+}
+void Thermostat::setHumidity(boolean val){
+  digitalWrite(humd, !val);
+}
+
+void Thermostat::keepTemperature(float temp){
+  if(heat_on == true){
+    if(Schedule[day].Slot[slot].temp + 0.5 < temp){
+      digitalWrite(heat, HIGH); // Turn heat off
+      heat_on = false;
+    }
+  } else {
+    if(Schedule[day].Slot[slot].temp - 0.5 > temp){
+      digitalWrite(heat, LOW); // Turn heat on
+      heat_on = true;
+    }
+  }
+}
+
+void Thermostat::keepHumidity(float humd){
+  if(humd_on == true){
+    if(target_humidity + 2 < humd){
+      digitalWrite(humd, HIGH); // Turn humidity off
+      humd_on = false;
+    }
+  } else {
+    if(target_humidity -2 > humd){
+      digitalWrite(humd, LOW); // Turn humidity on
+      humd_on = true;
+    }
+  }
+}
+
+void Thermostat::setTargetHumidity(float target){
+  target_humidity = target;
 }
 
 #endif

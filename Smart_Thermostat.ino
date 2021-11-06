@@ -28,8 +28,8 @@ overshooting the heating. Also controls the humidifier on the furnace.
 #include "secrets.h"
 
 #define DHTPIN 32
-#define RELAY_1 33
-#define RELAY_2 27
+#define HEATPIN 33
+#define HUMDPIN 27
 #define DHTTYPE DHT22
 #define PENRADIUS 2
 #define DEG2RAD 0.0174532925
@@ -53,24 +53,12 @@ struct intervals {
   unsigned long intv_heat = 120000;
 } interval;
 
-Thermostat thermostat = Thermostat(RELAY_1, RELAY_2);
+Thermostat thermostat = Thermostat(HEATPIN, HUMDPIN);
 
 float old_t, old_h;
 
 const uint16_t *menu[3] = {Home_Icon, Cal_Icon, Gear_Icon};
 char* nav[4] = {"Main","Rooms","Schedule","Settings"};
-
-/* 
-  Schedule holds the information about each day of the week and all the
-  configured temperatures. holds 10 individual temperature schedules,
-  times are saved as a 24 hour clock with the target temp for that time.
-*/ 
-
-
-/*
-  Keeps track of where within the schedule we are.
-*/
-
 
 /*
   Configure button placements
@@ -94,16 +82,13 @@ int nav_current = 0;
 void setup() {
   Serial.begin(115200);
 
-  initWiFi();
-  
-  thermostat.init();
-  
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
   dht.begin();
+  initWiFi();
+  thermostat.begin();
+  thermostat.setTargetHumidity(30.0);
 
-
-
-  
-  
   // Pins 18/19 are SDA/SCL for touch sensor on this device
   // 40 is a touch threshold
   if (!ts.begin(18, 19, 40)) {
@@ -134,17 +119,18 @@ void loop() {
     drawTime();
     thermostat.checkSchedule();
     // Turn heating/humidity on/off
+    // Move this into thermostat class
     if(current - interval.prev_heat >= interval.intv_heat){
       if(old_t < thermostat.goalTemp() -1){
-        heating(true);
+        thermostat.setHeating(true);
       } else if(old_t > thermostat.goalTemp() + 1){
-        heating(false);
+        thermostat.setHeating(false);
       }
 
       if(old_h < 35){
-        humidity(true);
+        thermostat.setHumidity(true);
       } else if (old_h > 40){
-        humidity(false);
+        thermostat.setHumidity(false);
       }
     }
     
@@ -174,11 +160,11 @@ void handleTouch(TS_Point p, char* screen){
   int button = getButtonPress(x, y);
   
   if ((x > prev_dow[0]) && (x < prev_dow[2]) && (y > prev_dow[1]) && y < prev_dow[3]){
-    thermostat.prevDaySched();
+    thermostat.prevDisplayDay();
     drawSchedule();
   }
   if (x > next_dow[0] && x < next_dow[2] && y > next_dow[1] && y < next_dow[3]){
-    thermostat.nextDaySched();
+    thermostat.nextDisplayDay();
     drawSchedule();
   }
   if (screen == "Main"){
@@ -409,7 +395,6 @@ void initWiFi(){
   while(WiFi.status() != WL_CONNECTED) {
     delay(1000);
   }
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 }
 
 /*
@@ -481,14 +466,6 @@ void tableFont(TFT_eSprite& img){
   img.setTextSize(2);
   img.setFreeFont(FM9);
   img.setTextColor(TFT_WHITE);
-}
-
-void heating(boolean val){
-  digitalWrite(RELAY_1, !val);
-}
-
-void humidity(boolean val){
-  digitalWrite(RELAY_2, !val);
 }
 
 void drawGoal(){
