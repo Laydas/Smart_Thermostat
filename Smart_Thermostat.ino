@@ -78,6 +78,8 @@ struct Layout {
   Button menu_rooms = Button(380, 480, 80, 160);
   Button menu_sched = Button(380, 480, 160, 240);
   Button menu_setting = Button(380,480, 240, 320);
+  Button up_humd = Button(160, 320, 110, 215);
+  Button down_humd = Button(160, 320, 215, 320);
 } Layout;
 
 /*
@@ -192,14 +194,27 @@ void handleTouch(TS_Point p, char* screen){
       }
     }
   }
-  
-  if(isButton(x, y, Layout.prev_dow)){
-    thermostat.prevDisplayDay();
-    drawSchedule();
+
+  if(screen == "Settings"){
+    if(isButton(x, y, Layout.up_humd)){
+      thermostat.setTargetHumidity(thermostat.getGoalHumd() + 1);
+      drawSettings();
+    }
+    if(isButton(x, y, Layout.down_humd)){
+      thermostat.setTargetHumidity(thermostat.getGoalHumd() - 1);
+      drawSettings();
+    }
   }
-  if (isButton(x, y, Layout.next_dow)){
-    thermostat.nextDisplayDay();
-    drawSchedule();
+
+  if(screen == "Schedule"){
+    if(isButton(x, y, Layout.prev_dow)){
+      thermostat.prevDisplayDay();
+      drawSchedule();
+    }
+    if (isButton(x, y, Layout.next_dow)){
+      thermostat.nextDisplayDay();
+      drawSchedule();
+    }
   }
   
   if(new_nav != nav_current){
@@ -267,9 +282,7 @@ void drawSchedule(){
   img.pushSprite(40,35);
   img.deleteSprite();
 
-  
   img.setTextDatum(ML_DATUM);
-  
   img.createSprite(300,160);
   tableFont(img);
   for(int i = 0; i < thermostat.getSlotCount(); i++){
@@ -283,11 +296,22 @@ void drawSchedule(){
 }
 
 void drawSettings(){
-  tft.setCursor(0,200,2);
-  tft.setTextColor(TFT_WHITE,TFT_BLUE); tft.setTextSize(3);
-  tft.setFreeFont(FMO12);
-  tft.fillRect(0, 150, 265, 210, TFT_BLACK);
-  tft.print("Settings!");
+  img.createSprite(200, 60);
+  secondFont(img);
+  img.setTextDatum(MC_DATUM);
+  img.drawString("Set Humidity", 80, 30);
+  img.pushSprite(160, 60);
+  img.deleteSprite();
+  img.createSprite(160, 150);
+  mainFont(img);
+  img.fillTriangle(80,0,110,30,50,30, TFT_WHITE);
+  img.fillTriangle(80,150,110,120,50,120, TFT_WHITE);
+  img.setTextDatum(MC_DATUM);
+  String temp_str = String(thermostat.getGoalHumd());
+  temp_str += "%";
+  img.drawString(temp_str, 80, 70);
+  img.pushSprite(160,140);
+  img.deleteSprite();
   drawBack(0);
 }
 
@@ -330,7 +354,6 @@ void drawDHTHum(float h){
   img.pushSprite(0, 240);
   img.deleteSprite();
 }
-
 
 
 //------------------------------------------------
@@ -509,3 +532,4 @@ void drawGoalHumd(){
   img.pushSprite(180,240);
   img.deleteSprite();
 }
+
