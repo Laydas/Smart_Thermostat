@@ -15,3 +15,7 @@ COMP444 Final Project - ESP32 Smart Thermostat
 - ESP8266/ESP32 Modules
   - Records temp/humidity in each room
   - Sends metrics to HA or Base
+
+## Required Setup
+- Clone sowbug/Adafruit_FT6206_Library to ArduinoIDE libraries
+- Modify TFT_eSPI/User_Setup_Select.h to point to the WT32-SC01 board
