@@ -28,8 +28,8 @@ overshooting the heating. Also controls the humidifier on the furnace.
 #include "secrets.h"
 
 #define DHTPIN 32
-#define RELAY_1 33
-#define RELAY_2 27
+#define HEATPIN 33
+#define HUMDPIN 27
 #define DHTTYPE DHT22
 #define PENRADIUS 2
 #define DEG2RAD 0.0174532925
@@ -53,7 +53,7 @@ struct intervals {
   unsigned long intv_heat = 120000;
 } interval;
 
-Thermostat thermostat = Thermostat(RELAY_1, RELAY_2);
+Thermostat thermostat = Thermostat(HEATPIN, HUMDPIN);
 
 float old_t, old_h;
 
@@ -95,9 +95,14 @@ int nav_current = 0;
 /***********************************************************************************************************************************/
 void setup() {
   Serial.begin(115200);
-  initWiFi();
-  thermostat.init();
+
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
   dht.begin();
+  initWiFi();
+  thermostat.begin();
+  thermostat.setTargetHumidity(30.0);
+
 
   // Pins 18/19 are SDA/SCL for touch sensor on this device
   // 40 is a touch threshold
@@ -129,17 +134,18 @@ void loop() {
     drawTime();
     thermostat.checkSchedule();
     // Turn heating/humidity on/off
+    // Move this into thermostat class
     if(current - interval.prev_heat >= interval.intv_heat){
-      if(old_t < thermostat.goalTemp() -1){
-        heating(true);
-      } else if(old_t > thermostat.goalTemp() + 1){
-        heating(false);
+      if(old_t < thermostat.getGoalTemp() -1){
+        thermostat.setHeating(true);
+      } else if(old_t > thermostat.getGoalTemp() + 1){
+        thermostat.setHeating(false);
       }
 
       if(old_h < 35){
-        humidity(true);
+        thermostat.setHumidity(true);
       } else if (old_h > 40){
-        humidity(false);
+        thermostat.setHumidity(false);
       }
     }
     
@@ -265,7 +271,7 @@ void drawSchedule(){
   
   img.createSprite(300,160);
   tableFont(img);
-  for(int i = 0; i < thermostat.getSlots(); i++){
+  for(int i = 0; i < thermostat.getSlotCount(); i++){
     String temp_str = thermostat.getSlotInfo(i);
     img.drawString(temp_str, 0, 20+(i*40), GFXFF);
     img.drawCircle(265,10+(i*40),3,TFT_WHITE);
@@ -406,7 +412,6 @@ void initWiFi(){
   while(WiFi.status() != WL_CONNECTED) {
     delay(1000);
   }
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 }
 
 /*
@@ -480,16 +485,8 @@ void tableFont(TFT_eSprite& img){
   img.setTextColor(TFT_WHITE);
 }
 
-void heating(boolean val){
-  digitalWrite(RELAY_1, !val);
-}
-
-void humidity(boolean val){
-  digitalWrite(RELAY_2, !val);
-}
-
 void drawGoal(){
-  String goal_str = String(thermostat.goalTemp());
+  String goal_str = String(thermostat.getGoalTemp());
   img.createSprite(180,60);
   img.setFreeFont(FF26);
   img.setTextColor(TFT_WHITE);
