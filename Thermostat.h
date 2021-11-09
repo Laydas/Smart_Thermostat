@@ -4,10 +4,8 @@
 #include <Preferences.h>
 
 /**
- * Thermostat holds all the functions relevant to a thermostat.
- * Holds a configurable schedule, controls heating and humidity
+ * @brief Holds all the logic for thermostat functions such as tracking a schedule and keeping the house warm
  * 
- * @param <int> heating relay pin, <int> humidity relay pin
  */
 class Thermostat {
   private:
@@ -70,9 +68,10 @@ class Thermostat {
  */
 
 
- /**
-  * Using the time from an ntp server, the thermostat determines the current day, hour, minute
-  */
+/**
+ * @brief Using the time from an ntp server, the thermostat determines the current day, hour, minute
+ * 
+ */
 void Thermostat::initSchedule(){
   struct tm timeinfo;
   while(!getLocalTime(&timeinfo)){
@@ -105,7 +104,11 @@ void Thermostat::initSchedule(){
 
 
 /**
- * Constructor class, assign the heating and humidity relays to the correct pins
+ * @brief Construct a new Thermostat:: Thermostat object.
+ * assign the heating and humidity relays to the correct pins
+ * 
+ * @param heatPin 
+ * @param humdPin 
  */
 Thermostat::Thermostat(int heatPin, int humdPin){
   heat = heatPin;
@@ -114,28 +117,36 @@ Thermostat::Thermostat(int heatPin, int humdPin){
 
 
 /**
- * Returns the 3 letter day of the week for the currently displayed day
+ * @brief Returns the 3 letter day of the week for the currently displayed day
+ * 
+ * @return char* 
  */
 char* Thermostat::getShortDow(){
   return dow[screen_dow];
 }
 
 /**
- * Returns the current target humidity
+ * @brief Returns the current target humidity
+ * 
+ * @return float 
  */
 float Thermostat::getGoalHumd(){
   return target_humidity;
 }
 
 /**
- * Returns the current target temperature
+ * @brief Returns the current target temperature
+ * 
+ * @return float 
  */
 float Thermostat::getGoalTemp(){
   return Schedule[day].Slot[slot].temp;
 }
 
 /**
- * Returns the schedule slot that the thermostat is currently in
+ * @brief Returns the schedule slot that the thermostat is currently in
+ * 
+ * @return int 
  */
 int Thermostat::getSlot(){
   return slot;
@@ -143,7 +154,9 @@ int Thermostat::getSlot(){
 
 
 /**
- * Returns the number of programmed schedules for the currently displayed day
+ * @brief Returns the number of programmed schedules for the currently displayed day
+ * 
+ * @return int 
  */
 int Thermostat::getSlotCount(){
   return Schedule[screen_dow].len;
@@ -151,10 +164,10 @@ int Thermostat::getSlotCount(){
 
 
 /**
- * Get the current timestamp as an integer array
+ * @brief Get the current timestamp as an integer array
  * 
- * @param an int array [3]
- * @return passes day, hour, minute as int into the received array
+ * @param ar 
+ * @return int[3]
  */
 int Thermostat::getTimeNow(int * ar){
   struct tm timeinfo;
@@ -176,8 +189,11 @@ int Thermostat::getTimeNow(int * ar){
 
 
 /**
- * Return the details about all the slots for the requested day
+ * @brief Return the details about all the slots for the requested day
  * the format returns as HH:MM Temp (06:30 22.5)
+ * 
+ * @param slot 
+ * @return String 
  */
 String Thermostat::getSlotInfo(int slot){
   String temp_str;
@@ -196,9 +212,10 @@ String Thermostat::getSlotInfo(int slot){
 
 
 /**
- * Configures the heating and humidity relay pins and turns them to off so that the
+ * @brief Configures the heating and humidity relay pins and turns them to off so that the
  * furnace is stuck with heat on incase there is an issue on device startup. Loads
  * the schedule from preferences as well.
+ * 
  */
 void Thermostat::begin(){
   pinMode(heat, OUTPUT);
@@ -212,8 +229,9 @@ void Thermostat::begin(){
 
 
 /**
- * Gets the current timestamp from an NTP server and then updates the
+ * @brief Gets the current timestamp from an NTP server and then updates the
  * day and slot so that the correct temperature is set as the target.
+ * 
  */
 void Thermostat::checkSchedule(){
   int tz[3];
@@ -241,12 +259,14 @@ void Thermostat::checkSchedule(){
 
 
 /**
- * Write the default schedule to long term storage.
+ * @brief Write the default schedule to long term storage.
  * Currently this is hard-coded, this should instead take the Schedule struct
  * and then parse and write the schedule back into preferences.
  * 
  * As there isn't any function to input schedules into the screen at this time
  * this needs to stay hard-coded.
+ * 
+ * @param prefs 
  */
 void Thermostat::createSchedule(Preferences &prefs){
   String temp_sched = "8,0,22;23,0,19.5";
@@ -260,8 +280,10 @@ void Thermostat::createSchedule(Preferences &prefs){
 
 
 /**
- * Reads the schedule for each day of the week from preferences and then parses it and
+ * @brief Reads the schedule for each day of the week from preferences and then parses it and
  * saves it into the Schedule struct.
+ * 
+ * @param prefs 
  */
 void Thermostat::loadSchedule(Preferences& prefs){
   String sched_sun = prefs.getString(full_days[0],"");
@@ -270,12 +292,13 @@ void Thermostat::loadSchedule(Preferences& prefs){
   if(sched_sun == ""){
     createSchedule(prefs);
   } else {
-    /* 
-       Read the schedule from memory and put it into the schedule object
-       schedules are saved as a non-nested key:value json like object
-       Format of preferences schedule as below
-       "<Day_of_week>": [ { <hour(int)>, <minute(int)>, <temperature(float)> }, {}]
-        */
+    /**
+     * Read the schedule from memory and put it into the schedule object
+     * schedules are saved as a non-nested key:value json like object
+     * Format of preferences schedule as below
+     * "<Day_of_week>": [ { <hour(int)>, <minute(int)>, <temperature(float)> }, {}]
+     * 
+     */
     for(int i = 0; i < 7; i++){
       String get_sched = prefs.getString(full_days[i],"");
       int slot_count = 0;
@@ -322,14 +345,16 @@ void Thermostat::loadSchedule(Preferences& prefs){
 
 
 /**
- * Sets the display day to the previous day of the week
+ * @brief Sets the display day to the previous day of the week
+ * 
  */
 void Thermostat::prevDisplayDay(){
   screen_dow = (screen_dow + 6) % 7;
 }
 
 /**
- * Sets the display day to the next day of the week
+ * @brief Sets the display day to the next day of the week
+ * 
  */
 void Thermostat::nextDisplayDay(){
   screen_dow = (screen_dow + 1) % 7;
@@ -341,8 +366,10 @@ void Thermostat::nextDisplayDay(){
  */
  
 /**
- * Takes an input temperature and determines whether the furnace should
+ * @brief Takes an input temperature and determines whether the furnace should
  * turn on or off.
+ * 
+ * @param temp 
  */
 void Thermostat::keepTemperature(float temp){
   if(heat_on == true){
@@ -359,8 +386,10 @@ void Thermostat::keepTemperature(float temp){
 }
 
 /**
- * Takes an input humidity and determines whether the humidifier should
+ * @brief Takes an input humidity and determines whether the humidifier should
  * turn on or off.
+ * 
+ * @param humd 
  */
 void Thermostat::keepHumidity(float humd){
   if(humd_on == true){
@@ -377,21 +406,27 @@ void Thermostat::keepHumidity(float humd){
 }
 
 /**
- * Allows manually turning furnace on or off
+ * @brief Allows manually turning furnace on or off
+ * 
+ * @param val 
  */
 void Thermostat::setHeating(boolean val){
   digitalWrite(heat, !val);
 }
 
 /**
- * Allows manually turning humidifier on or off
+ * @brief Allows manually turning humidifier on or off
+ * 
+ * @param val 
  */
 void Thermostat::setHumidity(boolean val){
   digitalWrite(humd, !val);
 }
 
 /**
- * Sets the target humidity
+ * @brief Sets the target humidity
+ * 
+ * @param target 
  */
 void Thermostat::setTargetHumidity(float target){
   target_humidity = target;
