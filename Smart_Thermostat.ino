@@ -60,23 +60,25 @@ float old_t, old_h;
 const uint16_t *menu[3] = {Home_Icon, Cal_Icon, Gear_Icon};
 char* nav[4] = {"Main","Rooms","Schedule","Settings"};
 
-/* 
-  Schedule holds the information about each day of the week and all the
-  configured temperatures. holds 10 individual temperature schedules,
-  times are saved as a 24 hour clock with the target temp for that time.
-*/ 
+/**
+ * @brief Structure for holding button coordinates, makes it easy to check
+ * if a button was pressed on touch input
+ * 
+ */
+struct Button {
+  int x, y, x2, y2;
+  Button(int x, int x2, int y, int y2):x(x), x2(x2), y(y), y2(y2){
+  }
+};
 
-
-/*
-  Keeps track of where within the schedule we are.
-*/
-
-
-/*
-  Configure button placements
-*/
-const int next_dow[4] = {170, 20, 210, 80};
-const int prev_dow[4] = {30, 20, 70, 80};
+struct Layout {
+  Button next_dow = Button(170, 210, 20, 80);
+  Button prev_dow = Button(30, 70, 20, 80);
+  Button menu_bar = Button(380, 480, 80, 320);
+  Button menu_rooms = Button(380, 480, 80, 160);
+  Button menu_sched = Button(380, 480, 160, 240);
+  Button menu_setting = Button(380,480, 240, 320);
+} Layout;
 
 /*
   Internet and NTP information
@@ -93,17 +95,10 @@ int nav_current = 0;
 /***********************************************************************************************************************************/
 void setup() {
   Serial.begin(115200);
-
   initWiFi();
-  
   thermostat.init();
-  
   dht.begin();
 
-
-
-  
-  
   // Pins 18/19 are SDA/SCL for touch sensor on this device
   // 40 is a touch threshold
   if (!ts.begin(18, 19, 40)) {
@@ -171,28 +166,34 @@ void handleTouch(TS_Point p, char* screen){
   int y = p.x;
   int x = map(p.y, 0, 480, 480, 0);
 
-  int button = getButtonPress(x, y);
+  // Handle all buttons that would appear on the main screen
+  if (screen == "Main"){
+    // Check to see if the touch was inside the menu bar (for now it's the only buttons on main anyways)
+    if(isButton(x, y, Layout.menu_bar)){
+      if(isButton(x, y, Layout.menu_rooms)){
+        new_nav = 1;
+      } else if(isButton(x, y, Layout.menu_sched)){
+        new_nav = 2;
+      } else if(isButton(x, y, Layout.menu_setting)){
+        new_nav = 3;
+      }
+    }
+  } else {
+    // Check to see if the back button was pressed on the other screens
+    if(isButton(x,y, Layout.menu_bar)){
+      if(isButton(x, y, Layout.menu_rooms)){
+        new_nav = 0;
+      }
+    }
+  }
   
-  if ((x > prev_dow[0]) && (x < prev_dow[2]) && (y > prev_dow[1]) && y < prev_dow[3]){
+  if(isButton(x, y, Layout.prev_dow)){
     thermostat.prevDaySched();
     drawSchedule();
   }
-  if (x > next_dow[0] && x < next_dow[2] && y > next_dow[1] && y < next_dow[3]){
+  if (isButton(x, y, Layout.next_dow)){
     thermostat.nextDaySched();
     drawSchedule();
-  }
-  if (screen == "Main"){
-    if (button == 1){
-      new_nav = 1;
-    } else if (button == 2){
-      new_nav = 2;
-    } else if (button == 3){
-      new_nav = 3;
-    }
-  } else {
-    if (button == 1) {
-      new_nav = 0;
-    }  
   }
   
   if(new_nav != nav_current){
@@ -201,23 +202,19 @@ void handleTouch(TS_Point p, char* screen){
   }
 }
 
-int getButtonPress(int x, int y){
-  if (x > button_col){
-    if (y > (key_h * 3)){
-      // Button 3 was pressed
-      return 3;
-    } else if ( y > (key_h * 2)) {
-      // Button 2 was pressed
-      return 2;
-    } else if (y > key_h){
-      // Button 1 was pressed
-      return 1;
-    } else {
-      return 0;
-    }
-  } else {
-    return 0;
-  }
+/**
+ * @brief Checks to see if the touched coordinates are inside the button
+ * 
+ * @param x 
+ * @param y 
+ * @param button 
+ * @return boolean 
+ */
+boolean isButton(int &x, int &y, Button &button){
+  if((x > button.x && x < button.x2) && (y > button.y && y < button.y2))
+    return true;
+  else
+    return false;
 }
 
 void drawNav(char* screen){
