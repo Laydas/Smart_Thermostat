@@ -42,6 +42,7 @@ class Thermostat {
   public:
     Thermostat(int heatPin, int humdPin);
     char* getShortDow();
+    float getGoalHumd();
     float getGoalTemp();
     int getSlot();
     int getSlotCount();
@@ -119,6 +120,12 @@ char* Thermostat::getShortDow(){
   return dow[screen_dow];
 }
 
+/**
+ * Returns the current target humidity
+ */
+float Thermostat::getGoalHumd(){
+  return target_humidity;
+}
 
 /**
  * Returns the current target temperature

@@ -194,11 +194,11 @@ void handleTouch(TS_Point p, char* screen){
   }
   
   if(isButton(x, y, Layout.prev_dow)){
-    thermostat.prevDaySched();
+    thermostat.prevDisplayDay();
     drawSchedule();
   }
   if (isButton(x, y, Layout.next_dow)){
-    thermostat.nextDaySched();
+    thermostat.nextDisplayDay();
     drawSchedule();
   }
   
@@ -244,7 +244,8 @@ void drawMain(){
   drawTempHeaders();
   drawDHTTemp(old_t);
   drawDHTHum(old_h);
-  drawGoal();
+  drawGoalTemp();
+  drawGoalHumd();
 }
 
 void drawRooms(){
@@ -320,7 +321,7 @@ float getDHTHum(float old_h, char* screen){
 }
 
 void drawDHTHum(float h){
-  img.createSprite(265, 60);
+  img.createSprite(180, 60);
   img.setTextDatum(ML_DATUM);
   
   mainFont(img);
@@ -485,7 +486,7 @@ void tableFont(TFT_eSprite& img){
   img.setTextColor(TFT_WHITE);
 }
 
-void drawGoal(){
+void drawGoalTemp(){
   String goal_str = String(thermostat.getGoalTemp());
   img.createSprite(180,60);
   img.setFreeFont(FF26);
@@ -494,5 +495,17 @@ void drawGoal(){
   img.setTextDatum(ML_DATUM);
   img.drawString(goal_str,0,30);
   img.pushSprite(180,180);
+  img.deleteSprite();
+}
+
+void drawGoalHumd(){
+  String goal_str = String(thermostat.getGoalHumd());
+  img.createSprite(180, 60);
+  img.setFreeFont(FF26);
+  img.setTextColor(TFT_WHITE);
+  img.setTextSize(2);
+  img.setTextDatum(ML_DATUM);
+  img.drawString(goal_str, 0, 30);
+  img.pushSprite(180,240);
   img.deleteSprite();
 }
