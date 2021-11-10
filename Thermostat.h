@@ -2,6 +2,7 @@
 #define THERMOSTAT_H
 
 #include <Preferences.h>
+#include "time.h"
 
 /**
  * @brief Holds all the logic for thermostat functions such as tracking a schedule and keeping the house warm
@@ -46,7 +47,7 @@ class Thermostat {
     int getSlotCount();
     int getTimeNow(int * ar);
     String getSlotInfo(int slot);
-    
+    String* daySlots();
     void begin();
 
     boolean checkSchedule();
@@ -210,6 +211,24 @@ String Thermostat::getSlotInfo(int slot){
   return temp_str;
 }
 
+String* Thermostat::daySlots(){
+  String slots[10];
+  for(int s = 0; s < 10; s++){
+    String temp_str;
+    if (Schedule[screen_dow].Slot[s].hour < 10){
+      temp_str += "0";
+    }
+    temp_str += String(Schedule[screen_dow].Slot[s].hour) + ":";
+    if (Schedule[screen_dow].Slot[s].minute < 10){
+      temp_str += "0";
+    }
+    temp_str += String(Schedule[screen_dow].Slot[s].minute);
+    temp_str += "  " + String(Schedule[screen_dow].Slot[s].temp);
+    temp_str += "c";
+    slots[s] = temp_str;
+  }
+  return slots;
+}
 
 /**
  * @brief Configures the heating and humidity relay pins and turns them to off so that the
