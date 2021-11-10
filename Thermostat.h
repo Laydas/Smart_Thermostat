@@ -12,6 +12,7 @@ class Thermostat {
   private:
     boolean heat_on = false;
     boolean humd_on = false;
+    boolean hold = false;
     float target_humidity;
     char* dow[7] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
     char* full_days[7] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
@@ -20,6 +21,7 @@ class Thermostat {
     int humd;
     int screen_dow;
     int slot;
+    float hold_temp = 21.0;
 	  Preferences preferences;
 
     /**
@@ -43,6 +45,8 @@ class Thermostat {
     char* getShortDow();
     float getGoalHumd();
     float getGoalTemp();
+    float getHoldTemp();
+    boolean getHold();
     int getSlot();
     int getSlotCount();
     int getTimeNow(int * ar);
@@ -62,6 +66,8 @@ class Thermostat {
     void setHeating(boolean val);
     void setHumidity(boolean val);
     void setTargetHumidity(float target);
+    void setHoldTemp(float target);
+    void toggleHold();
 };
 
 /**
@@ -142,6 +148,24 @@ float Thermostat::getGoalHumd(){
  */
 float Thermostat::getGoalTemp(){
   return Schedule[day].Slot[slot].temp;
+}
+
+/**
+ * @brief Returns the currently set holding temperature
+ * 
+ * @return float 
+ */
+float Thermostat::getHoldTemp(){
+  return hold_temp;
+}
+
+/**
+ * @brief Returns whether temp is holding or not
+ * 
+ * @return boolean 
+ */
+boolean Thermostat::getHold(){
+  return hold;
 }
 
 /**
@@ -313,7 +337,12 @@ void Thermostat::createSchedule(Preferences &prefs){
  */
 void Thermostat::loadSchedule(Preferences& prefs){
   String sched_sun = prefs.getString(full_days[0],"");
-
+  float read_humd = prefs.getFloat("Humidity");
+  if(!read_humd){
+    target_humidity = 30;
+  } else {
+    target_humidity = read_humd;
+  }
   // If the schedule has never been saved then save it on setup
   if(sched_sun == ""){
     createSchedule(prefs);
@@ -456,6 +485,15 @@ void Thermostat::setHumidity(boolean val){
  */
 void Thermostat::setTargetHumidity(float target){
   target_humidity = target;
+  preferences.putFloat("Humidity", target);
+}
+
+void Thermostat::setHoldTemp(float target){
+  hold_temp = target;
+}
+
+void Thermostat::toggleHold(){
+  hold = !hold;
 }
 
 #endif

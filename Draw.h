@@ -30,7 +30,7 @@ class Draw {
     void main(float temp, float humd, float goal_temp, float goal_humd);
     void rooms();
     void schedule(String slots[], String short_dow);
-    void settings(float goal_humd);
+    void settings(boolean hold, float hold_temp, float goal_humd);
 
     // Helper functions
     void tempHeaders();
@@ -139,19 +139,32 @@ void Draw::schedule(String slots[], String short_dow){
  * 
  * @param goal_humd current target humidity
  */
-void Draw::settings(float goal_humd){
+void Draw::settings(boolean hold, float hold_temp, float goal_humd){
   img.createSprite(480, 280);
   img.fillRect(0,0,480,280,TFT_BLACK);
+  // Write out headers
   secondFont(img);
   img.setTextDatum(MC_DATUM);
-  img.drawString("Set Humidity", 240, 50);
+  img.drawString("Hold", 40, 50);
+  img.drawString("Hold Temp", 155, 50);
+  img.drawString("Humidity", 305, 50);
+  
+  // Draw out triangles and buttons
   mainFont(img);
-  img.fillTriangle(240,90,270,120,210,120, TFT_WHITE);
-  img.fillTriangle(240,240,270,210,210,210, TFT_WHITE);
-  img.setTextDatum(MC_DATUM);
-  String temp_str = String(goal_humd);
+  if(hold){
+    img.drawString("ON", 40, 120);
+  } else {
+    img.drawString("OFF", 40, 120);
+  }
+  img.drawRoundRect(10, 90, 60, 60, 5, TFT_WHITE);
+  img.fillTriangle(155,90,185,120,125,120, TFT_WHITE);
+  img.fillTriangle(155,240,185,210,125,210, TFT_WHITE);
+  img.fillTriangle(305,90,335,120,275,120, TFT_WHITE);
+  img.fillTriangle(305,240,335,210,275,210, TFT_WHITE);
+  img.drawString(String(hold_temp), 155, 160);
+  String temp_str = String((int)goal_humd);
   temp_str += "%";
-  img.drawString(temp_str, 240, 160);
+  img.drawString(temp_str, 305, 160);
   back(img);
   img.pushSprite(0,40);
   img.deleteSprite();

@@ -59,8 +59,11 @@ struct Layout {
   Button menu_rooms = Button(380, 480, 80, 160);
   Button menu_sched = Button(380, 480, 160, 240);
   Button menu_setting = Button(380,480, 240, 320);
-  Button up_humd = Button(160, 320, 110, 215);
-  Button down_humd = Button(160, 320, 215, 320);
+  Button hold = Button(0, 80, 130, 190);
+  Button up_hold = Button(80, 230, 110, 215);
+  Button down_hold = Button(80, 230, 215, 320);
+  Button up_humd = Button(230, 380, 110, 215);
+  Button down_humd = Button(230, 380, 215, 320);
 } Layout;
 
 char* nav[4] = {"Main","Rooms","Schedule","Settings"};
@@ -85,7 +88,6 @@ void setup() {
   dht.begin();
   initWiFi();
   thermostat.begin();
-  thermostat.setTargetHumidity(30.0);
 
   if (!ts.begin(18, 19, 40)) {
     Serial.println("Couldn't start touchscreen controller");
@@ -169,14 +171,31 @@ void handleTouch(TS_Point p, char* screen){
   }
 
   if(screen == "Settings"){
+    boolean touched_button = false;
     if(isButton(x, y, Layout.up_humd)){
       thermostat.setTargetHumidity(thermostat.getGoalHumd() + 1);
-      draw.settings(thermostat.getGoalHumd());
+      touched_button = true;
     }
     if(isButton(x, y, Layout.down_humd)){
       thermostat.setTargetHumidity(thermostat.getGoalHumd() - 1);
-      draw.settings(thermostat.getGoalHumd());
+      touched_button = true;
     }
+    if(isButton(x, y, Layout.up_hold)){
+      Serial.println("Hold Up");
+      Serial.println(thermostat.getHoldTemp());
+      thermostat.setHoldTemp(thermostat.getHoldTemp() + 0.5f);
+      touched_button = true;
+    }
+    if(isButton(x, y, Layout.down_hold)){
+      thermostat.setHoldTemp(thermostat.getHoldTemp() - 0.5f);
+      touched_button = true;
+    }
+    if(isButton(x, y, Layout.hold)){
+      thermostat.toggleHold();
+      touched_button = true;
+    }
+    if(touched_button) 
+      draw.settings(thermostat.getHold(), thermostat.getHoldTemp(), thermostat.getGoalHumd());
   }
 
   if(screen == "Schedule"){
@@ -204,7 +223,7 @@ void handleTouch(TS_Point p, char* screen){
       thermostat.daySlots(slots);
       draw.schedule(slots, thermostat.getShortDow());
     } else if(nav[new_nav] == "Settings"){
-      draw.settings(thermostat.getGoalHumd());
+      draw.settings(thermostat.getHold(), thermostat.getHoldTemp(), thermostat.getGoalHumd());
     }
     nav_current = new_nav;
   }
