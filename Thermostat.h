@@ -293,13 +293,15 @@ boolean Thermostat::checkSchedule(){
  * @param prefs 
  */
 void Thermostat::createSchedule(Preferences &prefs){
-  String temp_sched = "8,0,22;23,0,19.5";
+  String temp_sched = "7,30,22;9,0,21;20,0,20;23,0,18.5";
   prefs.putString(full_days[0],temp_sched);
   prefs.putString(full_days[6],temp_sched);
-  temp_sched = "6,0,22.5;8,30,19.5;15,30,22.5;23,0,19.5";
-  for(int i = 1; i < 6; i++){
+  temp_sched = "6,30,23;8,0,20;15,0,21.5;23,0,18.5";
+  for(int i = 1; i < 5; i++){
     prefs.putString(full_days[i],temp_sched);
   }
+  temp_sched = "6,30,23;8,0,20;12,0,21.5;23,0,18.5";
+  prefs.putString(full_days[5], temp_sched);
 }
 
 
