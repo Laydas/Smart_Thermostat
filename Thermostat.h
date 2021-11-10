@@ -49,7 +49,7 @@ class Thermostat {
     
     void begin();
 
-    void checkSchedule();
+    boolean checkSchedule();
     void createSchedule(Preferences &prefs);
     void loadSchedule(Preferences& prefs);
     
@@ -232,15 +232,17 @@ void Thermostat::begin(){
  * @brief Gets the current timestamp from an NTP server and then updates the
  * day and slot so that the correct temperature is set as the target.
  * 
+ * @return boolean 
  */
-void Thermostat::checkSchedule(){
+boolean Thermostat::checkSchedule(){
   int tz[3];
   getTimeNow(tz);
   int next_hour,next_minute;
+  boolean changed = false;
   
   if(slot + 1 == Schedule[day].len){
     if( (day + 1) % 7 != tz[0]) 
-      return;
+      return changed;
     next_hour = Schedule[(day + 1) % 7].Slot[0].hour;
     next_minute = Schedule[(day + 1) % 7].Slot[0].minute;
   } else {
@@ -251,10 +253,13 @@ void Thermostat::checkSchedule(){
     if(slot + 1 == Schedule[day].len){
       day = (day + 1) % 7;
       slot = 0; 
+      changed = true;
     } else {
       slot += 1;
+      changed = true;
     }
   }
+  return changed;
 }
 
 

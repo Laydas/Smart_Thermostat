@@ -134,7 +134,9 @@ void loop() {
     old_t = getDHTTemp(old_t, nav[nav_current]);
     old_h = getDHTHum(old_h, nav[nav_current]);
     drawTime();
-    thermostat.checkSchedule();
+    if(thermostat.checkSchedule()){
+      drawGoalTemp();
+    }
     // Turn heating/humidity on/off
     // Move this into thermostat class
     if(current - interval.prev_heat >= interval.intv_heat){
@@ -512,11 +514,9 @@ void tableFont(TFT_eSprite& img){
 void drawGoalTemp(){
   String goal_str = String(thermostat.getGoalTemp());
   img.createSprite(180,60);
-  img.setFreeFont(FF26);
-  img.setTextColor(TFT_WHITE);
-  img.setTextSize(2);
+  mainFont(img);
   img.setTextDatum(ML_DATUM);
-  img.drawString(goal_str,0,30);
+  img.drawString(goal_str,0,30, GFXFF);
   img.pushSprite(180,180);
   img.deleteSprite();
 }
@@ -524,11 +524,9 @@ void drawGoalTemp(){
 void drawGoalHumd(){
   String goal_str = String(thermostat.getGoalHumd());
   img.createSprite(180, 60);
-  img.setFreeFont(FF26);
-  img.setTextColor(TFT_WHITE);
-  img.setTextSize(2);
+  mainFont(img);
   img.setTextDatum(ML_DATUM);
-  img.drawString(goal_str, 0, 30);
+  img.drawString(goal_str, 0, 30, GFXFF);
   img.pushSprite(180,240);
   img.deleteSprite();
 }
