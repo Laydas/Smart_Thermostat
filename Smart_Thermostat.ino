@@ -182,11 +182,15 @@ void handleTouch(TS_Point p, char* screen){
   if(screen == "Schedule"){
     if(isButton(x, y, Layout.prev_dow)){
       thermostat.prevDisplayDay();
-      draw.schedule(thermostat.daySlots(), thermostat.getShortDow());
+      String slots[10];
+      thermostat.daySlots(slots);
+      draw.schedule(slots, thermostat.getShortDow());
     }
     if (isButton(x, y, Layout.next_dow)){
       thermostat.nextDisplayDay();
-      draw.schedule(thermostat.daySlots(), thermostat.getShortDow());
+      String slots[10];
+      thermostat.daySlots(slots);
+      draw.schedule(slots, thermostat.getShortDow());
     }
   }
   
@@ -196,7 +200,9 @@ void handleTouch(TS_Point p, char* screen){
     } else if(nav[new_nav] == "Rooms"){
       draw.rooms();
     } else if(nav[new_nav] == "Schedule"){
-      draw.schedule(thermostat.daySlots(), thermostat.getShortDow());
+      String slots[10];
+      thermostat.daySlots(slots);
+      draw.schedule(slots, thermostat.getShortDow());
     } else if(nav[new_nav] == "Settings"){
       draw.settings(thermostat.getGoalHumd());
     }

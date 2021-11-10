@@ -29,12 +29,12 @@ class Draw {
     // Navigational
     void main(float temp, float humd, float goal_temp, float goal_humd);
     void rooms();
-    void schedule(String day_slots[10], String short_dow);
+    void schedule(String slots[], String short_dow);
     void settings(float goal_humd);
 
     // Helper functions
     void tempHeaders();
-    void back();
+    void back(TFT_eSprite &img);
     void wifi(int x, int y, int strength);
     void fillArc(int x, int y, int start_angle, int seg_count, int rx, int ry, int w, unsigned int colour);
     void time();
@@ -75,9 +75,9 @@ void Draw::begin(){
  * @param goal_humd 
  */
 void Draw::main(float temp, float humd, float goal_temp, float goal_humd){
-  img.createSprite(480, 260);
+  img.createSprite(480, 280);
   img.fillScreen(TFT_BLACK);
-  img.pushSprite(0, 60);
+  img.pushSprite(0, 40);
   img.deleteSprite();
   for (int i = 0; i < 3; i++){
     tft.pushImage(380, (i+1) * 80, 100, 80, menu[i]);
@@ -94,18 +94,18 @@ void Draw::main(float temp, float humd, float goal_temp, float goal_humd){
  * 
  */
 void Draw::rooms(){
-  img.createSprite(480, 260);
-  img.fillScreen(TFT_BLACK);
-  img.pushSprite(0, 60);
-  img.deleteSprite();
-  img.createSprite(380, 260);
-  img.fillRect(0, 0, 380, 260, TFT_BLACK);
+  img.createSprite(480, 280);
+  img.fillRect(0, 0, 480, 280, TFT_BLACK);
+  //img.pushSprite(0, 40);
+  //img.deleteSprite();
+  //img.createSprite(380, 260);
+  //img.fillRect(0, 0, 380, 260, TFT_BLACK);
   mainFont(img);
   img.setTextDatum(MC_DATUM);
   img.drawString("Rooms!", 190, 130);
-  img.pushSprite(0, 60);
+  back(img);
+  img.pushSprite(0, 40);
   img.deleteSprite();
-  back();
 }
 
 /**
@@ -114,30 +114,24 @@ void Draw::rooms(){
  * @param day_slots 
  * @param short_dow 
  */
-void Draw::schedule(String day_slots[10], String short_dow){
-  img.createSprite(480, 260);
-  img.fillScreen(TFT_BLACK);
-  img.pushSprite(0, 60);
-  img.deleteSprite();
-  img.createSprite(160, 80);
+void Draw::schedule(String slots[], String short_dow){
+  img.createSprite(480, 280);
+  img.fillRect(0,0,480,280,TFT_BLACK);
   mainFont(img);
-  img.fillTriangle(0,40,20,20,20,60, TFT_WHITE);
-  img.fillTriangle(160,40,140,20,140,60, TFT_WHITE);
+  img.fillTriangle(40,20,60,0,60,40, TFT_WHITE);
+  img.fillTriangle(200,20,180,0,180,40, TFT_WHITE);
   img.setTextDatum(MC_DATUM);
-  img.drawString(short_dow, 80, 40);
-  img.pushSprite(40,35);
-  img.deleteSprite();
-
+  img.drawString(short_dow, 120, 20);
   img.setTextDatum(ML_DATUM);
-  img.createSprite(300,160);
   tableFont(img);
-  for(int i = 0; i < 4; i++){
-    img.drawString(day_slots[i], 0, 20+(i*40), GFXFF);
-    img.drawCircle(265,10+(i*40),3,TFT_WHITE);
+  for(int i = 0; i < 10; i++){
+    if(slots[i] == "") continue;
+    img.drawString(slots[i], 20, 80+(i*40), GFXFF);
+    img.drawCircle(285,70+(i*40),3,TFT_WHITE);
   }
-  img.pushSprite(20, 100);
+  back(img);
+  img.pushSprite(0,40);
   img.deleteSprite();
-  back();
 }
 
 /**
@@ -146,27 +140,22 @@ void Draw::schedule(String day_slots[10], String short_dow){
  * @param goal_humd current target humidity
  */
 void Draw::settings(float goal_humd){
-  img.createSprite(480, 260);
-  img.fillScreen(TFT_BLACK);
-  img.pushSprite(0, 60);
-  img.deleteSprite();
-  img.createSprite(200, 60);
+  img.createSprite(480, 280);
+  img.fillRect(0,0,480,280,TFT_BLACK);
   secondFont(img);
   img.setTextDatum(MC_DATUM);
-  img.drawString("Set Humidity", 80, 30);
-  img.pushSprite(160, 60);
-  img.deleteSprite();
-  img.createSprite(160, 150);
+  img.drawString("Set Humidity", 240, 50);
   mainFont(img);
-  img.fillTriangle(80,0,110,30,50,30, TFT_WHITE);
-  img.fillTriangle(80,150,110,120,50,120, TFT_WHITE);
+  img.fillTriangle(240,90,270,120,210,120, TFT_WHITE);
+  img.fillTriangle(240,240,270,210,210,210, TFT_WHITE);
   img.setTextDatum(MC_DATUM);
   String temp_str = String(goal_humd);
   temp_str += "%";
-  img.drawString(temp_str, 80, 70);
-  img.pushSprite(160,140);
+  img.drawString(temp_str, 240, 160);
+  back(img);
+  img.pushSprite(0,40);
   img.deleteSprite();
-  back();
+  
 }
 
 /**
@@ -187,10 +176,10 @@ void Draw::tempHeaders(){
  * @brief Draws a back arrow, used in nested navigational screens
  * 
  */
-void Draw::back(){
-  img.createSprite(80, 80);
-  int start_x = 10;
-  int start_y = 40;
+void Draw::back(TFT_eSprite &img){
+  //img.createSprite(80, 80);
+  int start_x = 410;
+  int start_y = 80;
   for(int i = 0; i < 25; i++){
     img.fillCircle(start_x + i, start_y - i, PENRADIUS, TFT_WHITE);
   }
@@ -202,8 +191,6 @@ void Draw::back(){
   for(int i = 0; i < 50; i++){
     img.fillCircle( start_x + i, start_y, PENRADIUS, TFT_WHITE);
   }
-  img.pushSprite(400, 80);
-  img.deleteSprite();
 }
 
 /**

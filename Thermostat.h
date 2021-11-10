@@ -47,7 +47,7 @@ class Thermostat {
     int getSlotCount();
     int getTimeNow(int * ar);
     String getSlotInfo(int slot);
-    String* daySlots();
+    void daySlots(String slots[10]);
     void begin();
 
     boolean checkSchedule();
@@ -211,23 +211,23 @@ String Thermostat::getSlotInfo(int slot){
   return temp_str;
 }
 
-String* Thermostat::daySlots(){
-  String slots[10];
+void Thermostat::daySlots(String slots[10]){
   for(int s = 0; s < 10; s++){
-    String temp_str;
+    if(!Schedule[screen_dow].Slot[s].temp){
+      continue;
+    }
+    slots[s] = "";
     if (Schedule[screen_dow].Slot[s].hour < 10){
-      temp_str += "0";
+      slots[s] += "0";
     }
-    temp_str += String(Schedule[screen_dow].Slot[s].hour) + ":";
+    slots[s] += String(Schedule[screen_dow].Slot[s].hour) + ":";
     if (Schedule[screen_dow].Slot[s].minute < 10){
-      temp_str += "0";
+      slots[s] += "0";
     }
-    temp_str += String(Schedule[screen_dow].Slot[s].minute);
-    temp_str += "  " + String(Schedule[screen_dow].Slot[s].temp);
-    temp_str += "c";
-    slots[s] = temp_str;
+    slots[s] += String(Schedule[screen_dow].Slot[s].minute);
+    slots[s] += "  " + String(Schedule[screen_dow].Slot[s].temp);
+    slots[s] += "c";
   }
-  return slots;
 }
 
 /**
