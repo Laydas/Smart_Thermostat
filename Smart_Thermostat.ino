@@ -95,7 +95,7 @@ void setup() {
   }
   draw.begin();
 
-  draw.main(old.temp, old.humd, thermostat.getGoalTemp(), thermostat.getGoalHumd());
+  draw.main(old.temp, old.humd, thermostat.getGoalTemp(), thermostat.getGoalHumd(), thermostat.getHold());
 }
 
 void loop() {
@@ -108,22 +108,14 @@ void loop() {
     old.humd = getDHTHum(old.humd, nav[nav_current]);
     draw.time();
     if(thermostat.checkSchedule()){
-      draw.goalTemp(thermostat.getGoalTemp());
+      draw.goalTemp(thermostat.getHold(), thermostat.getGoalTemp());
     }
     // Turn heating/humidity on/off
     // Move this into thermostat class
     if(current - interval.prev_heat >= interval.intv_heat){
-      if(old.temp < thermostat.getGoalTemp() -1){
-        thermostat.setHeating(true);
-      } else if(old.temp > thermostat.getGoalTemp() + 1){
-        thermostat.setHeating(false);
-      }
-
-      if(old.humd < 35){
-        thermostat.setHumidity(true);
-      } else if (old.humd > 40){
-        thermostat.setHumidity(false);
-      }
+      thermostat.keepTemperature(old.temp);
+      thermostat.keepHumidity(old.humd);
+      interval.prev_heat = current;
     }
     
     checkWifi();
@@ -132,6 +124,7 @@ void loop() {
       WiFi.reconnect();
       interval.prev_wifi = current;
     }
+    interval.prev = current;
   }
     
   // Restart loop if the screen hasn't been touched
@@ -181,8 +174,6 @@ void handleTouch(TS_Point p, char* screen){
       touched_button = true;
     }
     if(isButton(x, y, Layout.up_hold)){
-      Serial.println("Hold Up");
-      Serial.println(thermostat.getHoldTemp());
       thermostat.setHoldTemp(thermostat.getHoldTemp() + 0.5f);
       touched_button = true;
     }
@@ -215,7 +206,7 @@ void handleTouch(TS_Point p, char* screen){
   
   if(new_nav != nav_current){
     if(nav[new_nav] == "Main"){
-      draw.main(old.temp, old.humd, thermostat.getGoalTemp(), thermostat.getGoalHumd());
+      draw.main(old.temp, old.humd, thermostat.getGoalTemp(), thermostat.getGoalHumd(), thermostat.getHold());
     } else if(nav[new_nav] == "Rooms"){
       draw.rooms();
     } else if(nav[new_nav] == "Schedule"){

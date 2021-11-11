@@ -27,7 +27,7 @@ class Draw {
     void begin();
     
     // Navigational
-    void main(float temp, float humd, float goal_temp, float goal_humd);
+    void main(float temp, float humd, float goal_temp, float goal_humd, boolean holding);
     void rooms();
     void schedule(String slots[], String short_dow);
     void settings(boolean hold, float hold_temp, float goal_humd);
@@ -43,7 +43,7 @@ class Draw {
     void dhtHumd(float humd);
     void dhtTemp(float temp);
     void goalHumd(float humd);
-    void goalTemp(float temp);
+    void goalTemp(boolean holding, float temp);
     
     // Fonts
     void mainFont(TFT_eSprite& img);
@@ -73,8 +73,9 @@ void Draw::begin(){
  * @param humd 
  * @param goal_temp 
  * @param goal_humd 
+ * @param holding
  */
-void Draw::main(float temp, float humd, float goal_temp, float goal_humd){
+void Draw::main(float temp, float humd, float goal_temp, float goal_humd, boolean holding){
   img.createSprite(480, 280);
   img.fillScreen(TFT_BLACK);
   img.pushSprite(0, 40);
@@ -85,7 +86,7 @@ void Draw::main(float temp, float humd, float goal_temp, float goal_humd){
   tempHeaders();
   dhtTemp(temp);
   dhtHumd(humd);
-  goalTemp(goal_temp);
+  goalTemp(holding, goal_temp);
   goalHumd(goal_humd);
 }
 
@@ -347,12 +348,15 @@ void Draw::goalHumd(float humd){
  * 
  * @param temp 
  */
-void Draw::goalTemp(float temp){
+void Draw::goalTemp(boolean holding, float temp){
   String goal_str = String(temp);
   img.createSprite(180,60);
   mainFont(img);
   img.setTextDatum(ML_DATUM);
   img.drawString(goal_str,0,30, GFXFF);
+  if(holding){
+    img.drawRoundRect(0, 0, 180, 60, 5, TFT_WHITE);
+  }
   img.pushSprite(180,180);
   img.deleteSprite();
 }

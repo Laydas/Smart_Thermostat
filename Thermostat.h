@@ -17,8 +17,8 @@ class Thermostat {
     char* dow[7] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
     char* full_days[7] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
     int day;
-    int heat;
-    int humd;
+    int heat_pin;
+    int humd_pin;
     int screen_dow;
     int slot;
     float hold_temp = 21.0;
@@ -118,8 +118,8 @@ void Thermostat::initSchedule(){
  * @param humdPin 
  */
 Thermostat::Thermostat(int heatPin, int humdPin){
-  heat = heatPin;
-  humd = humdPin;
+  heat_pin = heatPin;
+  humd_pin = humdPin;
 }
 
 
@@ -147,7 +147,11 @@ float Thermostat::getGoalHumd(){
  * @return float 
  */
 float Thermostat::getGoalTemp(){
-  return Schedule[day].Slot[slot].temp;
+  if(hold){
+    return hold_temp;
+  } else {
+    return Schedule[day].Slot[slot].temp;
+  }
 }
 
 /**
@@ -261,10 +265,10 @@ void Thermostat::daySlots(String slots[10]){
  * 
  */
 void Thermostat::begin(){
-  pinMode(heat, OUTPUT);
-  pinMode(humd, OUTPUT);
-  digitalWrite(heat, HIGH);
-  digitalWrite(humd, HIGH);
+  pinMode(heat_pin, OUTPUT);
+  pinMode(humd_pin, OUTPUT);
+  digitalWrite(heat_pin, HIGH);
+  digitalWrite(humd_pin, HIGH);
   preferences.begin("schedule",false);
   loadSchedule(preferences);
   initSchedule();
@@ -428,13 +432,13 @@ void Thermostat::nextDisplayDay(){
  */
 void Thermostat::keepTemperature(float temp){
   if(heat_on == true){
-    if(Schedule[day].Slot[slot].temp + 0.5 < temp){
-      digitalWrite(heat, HIGH); // Turn heat off
+    if(temp > getGoalTemp() + 1){
+      digitalWrite(heat_pin, HIGH); // Turn heat off
       heat_on = false;
     }
   } else {
-    if(Schedule[day].Slot[slot].temp - 0.5 > temp){
-      digitalWrite(heat, LOW); // Turn heat on
+    if(temp < getGoalTemp() - 1){
+      digitalWrite(heat_pin, LOW); // Turn heat on
       heat_on = true;
     }
   }
@@ -448,13 +452,13 @@ void Thermostat::keepTemperature(float temp){
  */
 void Thermostat::keepHumidity(float humd){
   if(humd_on == true){
-    if(target_humidity + 2 < humd){
-      digitalWrite(humd, HIGH); // Turn humidity off
+    if(humd > target_humidity + 1.5){
+      digitalWrite(humd_pin, HIGH); // Turn humidity off
       humd_on = false;
     }
   } else {
-    if(target_humidity -2 > humd){
-      digitalWrite(humd, LOW); // Turn humidity on
+    if(humd < target_humidity - 2.0){
+      digitalWrite(humd_pin, LOW); // Turn humidity on
       humd_on = true;
     }
   }
@@ -466,7 +470,7 @@ void Thermostat::keepHumidity(float humd){
  * @param val 
  */
 void Thermostat::setHeating(boolean val){
-  digitalWrite(heat, !val);
+  digitalWrite(heat_pin, !val);
 }
 
 /**
@@ -475,7 +479,7 @@ void Thermostat::setHeating(boolean val){
  * @param val 
  */
 void Thermostat::setHumidity(boolean val){
-  digitalWrite(humd, !val);
+  digitalWrite(humd_pin, !val);
 }
 
 /**
