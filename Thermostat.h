@@ -2,6 +2,7 @@
 #define THERMOSTAT_H
 
 #include <Preferences.h>
+#include "time.h"
 
 /**
  * @brief Holds all the logic for thermostat functions such as tracking a schedule and keeping the house warm
@@ -11,14 +12,16 @@ class Thermostat {
   private:
     boolean heat_on = false;
     boolean humd_on = false;
+    boolean hold = false;
     float target_humidity;
     char* dow[7] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
     char* full_days[7] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"};
     int day;
-    int heat;
-    int humd;
+    int heat_pin;
+    int humd_pin;
     int screen_dow;
     int slot;
+    float hold_temp = 21.0;
 	  Preferences preferences;
 
     /**
@@ -42,11 +45,13 @@ class Thermostat {
     char* getShortDow();
     float getGoalHumd();
     float getGoalTemp();
+    float getHoldTemp();
+    boolean getHold();
     int getSlot();
     int getSlotCount();
     int getTimeNow(int * ar);
     String getSlotInfo(int slot);
-    
+    void daySlots(String slots[10]);
     void begin();
 
     boolean checkSchedule();
@@ -61,6 +66,8 @@ class Thermostat {
     void setHeating(boolean val);
     void setHumidity(boolean val);
     void setTargetHumidity(float target);
+    void setHoldTemp(float target);
+    void toggleHold();
 };
 
 /**
@@ -111,8 +118,8 @@ void Thermostat::initSchedule(){
  * @param humdPin 
  */
 Thermostat::Thermostat(int heatPin, int humdPin){
-  heat = heatPin;
-  humd = humdPin;
+  heat_pin = heatPin;
+  humd_pin = humdPin;
 }
 
 
@@ -140,7 +147,29 @@ float Thermostat::getGoalHumd(){
  * @return float 
  */
 float Thermostat::getGoalTemp(){
-  return Schedule[day].Slot[slot].temp;
+  if(hold){
+    return hold_temp;
+  } else {
+    return Schedule[day].Slot[slot].temp;
+  }
+}
+
+/**
+ * @brief Returns the currently set holding temperature
+ * 
+ * @return float 
+ */
+float Thermostat::getHoldTemp(){
+  return hold_temp;
+}
+
+/**
+ * @brief Returns whether temp is holding or not
+ * 
+ * @return boolean 
+ */
+boolean Thermostat::getHold(){
+  return hold;
 }
 
 /**
@@ -210,6 +239,24 @@ String Thermostat::getSlotInfo(int slot){
   return temp_str;
 }
 
+void Thermostat::daySlots(String slots[10]){
+  for(int s = 0; s < 10; s++){
+    if(!Schedule[screen_dow].Slot[s].temp){
+      continue;
+    }
+    slots[s] = "";
+    if (Schedule[screen_dow].Slot[s].hour < 10){
+      slots[s] += "0";
+    }
+    slots[s] += String(Schedule[screen_dow].Slot[s].hour) + ":";
+    if (Schedule[screen_dow].Slot[s].minute < 10){
+      slots[s] += "0";
+    }
+    slots[s] += String(Schedule[screen_dow].Slot[s].minute);
+    slots[s] += "  " + String(Schedule[screen_dow].Slot[s].temp);
+    slots[s] += "c";
+  }
+}
 
 /**
  * @brief Configures the heating and humidity relay pins and turns them to off so that the
@@ -218,10 +265,10 @@ String Thermostat::getSlotInfo(int slot){
  * 
  */
 void Thermostat::begin(){
-  pinMode(heat, OUTPUT);
-  pinMode(humd, OUTPUT);
-  digitalWrite(heat, HIGH);
-  digitalWrite(humd, HIGH);
+  pinMode(heat_pin, OUTPUT);
+  pinMode(humd_pin, OUTPUT);
+  digitalWrite(heat_pin, HIGH);
+  digitalWrite(humd_pin, HIGH);
   preferences.begin("schedule",false);
   loadSchedule(preferences);
   initSchedule();
@@ -274,13 +321,15 @@ boolean Thermostat::checkSchedule(){
  * @param prefs 
  */
 void Thermostat::createSchedule(Preferences &prefs){
-  String temp_sched = "8,0,22;23,0,19.5";
+  String temp_sched = "7,30,22;9,0,21;20,0,20;23,0,18.5";
   prefs.putString(full_days[0],temp_sched);
   prefs.putString(full_days[6],temp_sched);
-  temp_sched = "6,0,22.5;8,30,19.5;15,30,22.5;23,0,19.5";
-  for(int i = 1; i < 6; i++){
+  temp_sched = "6,30,23;8,0,20;15,0,21.5;23,0,18.5";
+  for(int i = 1; i < 5; i++){
     prefs.putString(full_days[i],temp_sched);
   }
+  temp_sched = "6,30,23;8,0,20;12,0,21.5;23,0,18.5";
+  prefs.putString(full_days[5], temp_sched);
 }
 
 
@@ -292,7 +341,12 @@ void Thermostat::createSchedule(Preferences &prefs){
  */
 void Thermostat::loadSchedule(Preferences& prefs){
   String sched_sun = prefs.getString(full_days[0],"");
-
+  float read_humd = prefs.getFloat("Humidity");
+  if(!read_humd){
+    target_humidity = 30;
+  } else {
+    target_humidity = read_humd;
+  }
   // If the schedule has never been saved then save it on setup
   if(sched_sun == ""){
     createSchedule(prefs);
@@ -378,13 +432,13 @@ void Thermostat::nextDisplayDay(){
  */
 void Thermostat::keepTemperature(float temp){
   if(heat_on == true){
-    if(Schedule[day].Slot[slot].temp + 0.5 < temp){
-      digitalWrite(heat, HIGH); // Turn heat off
+    if(temp > getGoalTemp() + 1){
+      digitalWrite(heat_pin, HIGH); // Turn heat off
       heat_on = false;
     }
   } else {
-    if(Schedule[day].Slot[slot].temp - 0.5 > temp){
-      digitalWrite(heat, LOW); // Turn heat on
+    if(temp < getGoalTemp() - 1){
+      digitalWrite(heat_pin, LOW); // Turn heat on
       heat_on = true;
     }
   }
@@ -398,13 +452,13 @@ void Thermostat::keepTemperature(float temp){
  */
 void Thermostat::keepHumidity(float humd){
   if(humd_on == true){
-    if(target_humidity + 2 < humd){
-      digitalWrite(humd, HIGH); // Turn humidity off
+    if(humd > target_humidity + 1.5){
+      digitalWrite(humd_pin, HIGH); // Turn humidity off
       humd_on = false;
     }
   } else {
-    if(target_humidity -2 > humd){
-      digitalWrite(humd, LOW); // Turn humidity on
+    if(humd < target_humidity - 2.0){
+      digitalWrite(humd_pin, LOW); // Turn humidity on
       humd_on = true;
     }
   }
@@ -416,7 +470,7 @@ void Thermostat::keepHumidity(float humd){
  * @param val 
  */
 void Thermostat::setHeating(boolean val){
-  digitalWrite(heat, !val);
+  digitalWrite(heat_pin, !val);
 }
 
 /**
@@ -425,7 +479,7 @@ void Thermostat::setHeating(boolean val){
  * @param val 
  */
 void Thermostat::setHumidity(boolean val){
-  digitalWrite(humd, !val);
+  digitalWrite(humd_pin, !val);
 }
 
 /**
@@ -435,6 +489,15 @@ void Thermostat::setHumidity(boolean val){
  */
 void Thermostat::setTargetHumidity(float target){
   target_humidity = target;
+  preferences.putFloat("Humidity", target);
+}
+
+void Thermostat::setHoldTemp(float target){
+  hold_temp = target;
+}
+
+void Thermostat::toggleHold(){
+  hold = !hold;
 }
 
 #endif
