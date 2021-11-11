@@ -238,7 +238,6 @@ void Draw::wifi(int x, int y, int strength){
  */
 void Draw::fillArc(int x, int y, int start_angle, int seg_count, int rx, int ry, int w, unsigned int colour)
 {
-
   byte seg = 6; // Segments are 3 degrees wide = 120 segments for 360 degrees
   byte inc = 6; // Draw segments every 3 degrees, increase to 6 for segmented ring
 
@@ -283,6 +282,7 @@ void Draw::time(){
   }
   char local_out[33];
   char now_ampm[3];
+  // Get my own specific format
   strftime(local_out,33,"%A, %B %d %I:%M", &timeinfo);
   strftime(now_ampm,3,"%p", &timeinfo);
   String ampm = String(now_ampm);

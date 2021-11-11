@@ -42,16 +42,23 @@ struct intervals {
 Thermostat thermostat = Thermostat(HEATPIN, HUMDPIN);
 Draw draw = Draw();
 
+/**
+ * @brief Holds the current (or old) temperature. Used to compare against incoming
+ * sensor readings and used to pass temps to other class methods
+ * 
+ */
 struct old{
   float temp;
   float humd;
 } old;
 
+// Create a button object using the 4 corner coordinates
 struct Button {
   int x, y, x2, y2;
   Button(int x, int x2, int y, int y2):x(x), x2(x2), y(y), y2(y2){}
 };
 
+// Define where each button is going to go on the screen
 struct Layout {
   Button next_dow = Button(170, 210, 20, 80);
   Button prev_dow = Button(30, 70, 20, 80);
@@ -68,22 +75,19 @@ struct Layout {
 
 char* nav[4] = {"Main","Rooms","Schedule","Settings"};
 
-/*
-  Internet and NTP information
- */
+// Internet and NTP information
 const char* ssid = SSID_NAME;
 const char* password = SSID_PASS;
 const char* ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = -25200;
 const int daylightOffset_sec = 3600;
 
-int current_dow;
 int nav_current = 0;
 
-/***********************************************************************************************************************************/
-void setup() {
-  Serial.begin(115200);
 
+void setup() {
+  // Initialization of all the classes/objects needed
+  Serial.begin(115200);
   configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
   dht.begin();
   initWiFi();
@@ -93,31 +97,36 @@ void setup() {
     Serial.println("Couldn't start touchscreen controller");
     while (true);
   }
-  draw.begin();
 
+  draw.begin();
+  // Draw the main landing screen
   draw.main(old.temp, old.humd, thermostat.getGoalTemp(), thermostat.getGoalHumd(), thermostat.getHold());
 }
 
 void loop() {
-  // Update the onboard temp/humidity every 2 seconds.
-  // This might be a bit aggressive.
+  // Update the onboard temp/humidity every 2 seconds. This might be a bit aggressive.
   unsigned long current = millis();
   if(current - interval.prev >= interval.intv){
     interval.prev = current;
+    // Update the sensor readings
     old.temp = getDHTTemp(old.temp, nav[nav_current]);
     old.humd = getDHTHum(old.humd, nav[nav_current]);
+    // Draw the date string at the top of the screen
     draw.time();
+
+    // If the time has moved into a new scheduled slot then draw the goal temp again
     if(thermostat.checkSchedule()){
       draw.goalTemp(thermostat.getHold(), thermostat.getGoalTemp());
     }
-    // Turn heating/humidity on/off
-    // Move this into thermostat class
+
+    // Turn heating/humidity on/off every 5 minutes ( to avoid constantly turning on furnace )
     if(current - interval.prev_heat >= interval.intv_heat){
       thermostat.keepTemperature(old.temp);
       thermostat.keepHumidity(old.humd);
       interval.prev_heat = current;
     }
     
+    // Attempt to reconnect to wifi if disconnected
     checkWifi();
     if((WiFi.status() != WL_CONNECTED) && (current - interval.prev_wifi >= interval.intv_wifi)){
       WiFi.disconnect();
@@ -137,8 +146,13 @@ void loop() {
   delay(250); // Delay to reduce loop rate (reduces flicker caused by aliasing with TFT screen refresh rate)
 }
 
+/**
+ * @brief Handle input from screen
+ * 
+ * @param p 
+ * @param screen 
+ */
 void handleTouch(TS_Point p, char* screen){
-  int new_nav = nav_current;
   int y = p.x;
   int x = map(p.y, 0, 480, 480, 0);
 
@@ -147,22 +161,30 @@ void handleTouch(TS_Point p, char* screen){
     // Check to see if the touch was inside the menu bar (for now it's the only buttons on main anyways)
     if(isButton(x, y, Layout.menu_bar)){
       if(isButton(x, y, Layout.menu_rooms)){
-        new_nav = 1;
+        nav_current = 1;
+        draw.rooms();
       } else if(isButton(x, y, Layout.menu_sched)){
-        new_nav = 2;
+        nav_current = 2;
+        String slots[10];
+        thermostat.daySlots(slots);
+        draw.schedule(slots, thermostat.getShortDow());
       } else if(isButton(x, y, Layout.menu_setting)){
-        new_nav = 3;
+        nav_current = 3;
+        draw.settings(thermostat.getHold(), thermostat.getHoldTemp(), thermostat.getGoalHumd());
       }
     }
   } else {
     // Check to see if the back button was pressed on the other screens
     if(isButton(x,y, Layout.menu_bar)){
       if(isButton(x, y, Layout.menu_rooms)){
-        new_nav = 0;
+        nav_current = 0;
+        draw.main(old.temp, old.humd, thermostat.getGoalTemp(), thermostat.getGoalHumd(), thermostat.getHold());
       }
     }
   }
 
+  // Settings has most of the buttons right now, this handles the control of holding a temp or setting
+  // the current humidity goal
   if(screen == "Settings"){
     boolean touched_button = false;
     if(isButton(x, y, Layout.up_humd)){
@@ -185,10 +207,12 @@ void handleTouch(TS_Point p, char* screen){
       thermostat.toggleHold();
       touched_button = true;
     }
+    // Only redraw the screen when a change has been made/button touched
     if(touched_button) 
       draw.settings(thermostat.getHold(), thermostat.getHoldTemp(), thermostat.getGoalHumd());
   }
 
+  // Navigate through to view the weeks schedule
   if(screen == "Schedule"){
     if(isButton(x, y, Layout.prev_dow)){
       thermostat.prevDisplayDay();
@@ -202,21 +226,6 @@ void handleTouch(TS_Point p, char* screen){
       thermostat.daySlots(slots);
       draw.schedule(slots, thermostat.getShortDow());
     }
-  }
-  
-  if(new_nav != nav_current){
-    if(nav[new_nav] == "Main"){
-      draw.main(old.temp, old.humd, thermostat.getGoalTemp(), thermostat.getGoalHumd(), thermostat.getHold());
-    } else if(nav[new_nav] == "Rooms"){
-      draw.rooms();
-    } else if(nav[new_nav] == "Schedule"){
-      String slots[10];
-      thermostat.daySlots(slots);
-      draw.schedule(slots, thermostat.getShortDow());
-    } else if(nav[new_nav] == "Settings"){
-      draw.settings(thermostat.getHold(), thermostat.getHoldTemp(), thermostat.getGoalHumd());
-    }
-    nav_current = new_nav;
   }
 }
 
@@ -253,16 +262,18 @@ float getDHTHum(float old_humd, char* screen){
   return humd;
 }
 
+// Turn on the wifi and connect
 void initWiFi(){
   WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   while(WiFi.status() != WL_CONNECTED) {
-    delay(1000);
+    delay(500);
   }
 }
 
-/*
-  Check the wifi strength and update the display
+/**
+ * @brief Check the strength of the wifi and call the draw.wifi with the current strength
+ * 
  */
 void checkWifi(){
   if(WiFi.status() != WL_CONNECTED){

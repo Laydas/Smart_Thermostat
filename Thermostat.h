@@ -23,9 +23,9 @@ class Thermostat {
     int slot;
     float hold_temp = 21.0;
 	  Preferences preferences;
-
+    void initSchedule();
     /**
-     * Schedule holds the day, number of schedule slots, and schedulable slots
+     * @brief holds the day, number of schedule slots, and schedulable slots
      * Slots contains the hour, minute, and temperature setting for each slot
      */
     struct Schedule {
@@ -37,8 +37,6 @@ class Thermostat {
         float_t temp;
       } Slot[10]; // Maximum 10 slots
     } Schedule[7]; // 7 days of the week
-
-    void initSchedule();
 
   public:
     Thermostat(int heatPin, int humdPin);
@@ -71,11 +69,6 @@ class Thermostat {
 };
 
 /**
- * Private class functions
- */
-
-
-/**
  * @brief Using the time from an ntp server, the thermostat determines the current day, hour, minute
  * 
  */
@@ -103,12 +96,6 @@ void Thermostat::initSchedule(){
   day = tz[0];
   slot = Schedule[tz[0]].len - 1;
 }
-
-
-/**
- * Public class functions
- */
-
 
 /**
  * @brief Construct a new Thermostat:: Thermostat object.
@@ -239,6 +226,11 @@ String Thermostat::getSlotInfo(int slot){
   return temp_str;
 }
 
+/**
+ * @brief Returns a String array with preformatted HH:MM DD strings
+ * 
+ * @param slots 
+ */
 void Thermostat::daySlots(String slots[10]){
   for(int s = 0; s < 10; s++){
     if(!Schedule[screen_dow].Slot[s].temp){
@@ -418,11 +410,6 @@ void Thermostat::prevDisplayDay(){
 void Thermostat::nextDisplayDay(){
   screen_dow = (screen_dow + 1) % 7;
 }
-
-
-/**
- * --------HEATING FUNCTIONS--------
- */
  
 /**
  * @brief Takes an input temperature and determines whether the furnace should
@@ -465,24 +452,6 @@ void Thermostat::keepHumidity(float humd){
 }
 
 /**
- * @brief Allows manually turning furnace on or off
- * 
- * @param val 
- */
-void Thermostat::setHeating(boolean val){
-  digitalWrite(heat_pin, !val);
-}
-
-/**
- * @brief Allows manually turning humidifier on or off
- * 
- * @param val 
- */
-void Thermostat::setHumidity(boolean val){
-  digitalWrite(humd_pin, !val);
-}
-
-/**
  * @brief Sets the target humidity
  * 
  * @param target 
@@ -492,10 +461,19 @@ void Thermostat::setTargetHumidity(float target){
   preferences.putFloat("Humidity", target);
 }
 
+/**
+ * @brief Set the holding temperature to the provided float
+ * 
+ * @param target 
+ */
 void Thermostat::setHoldTemp(float target){
   hold_temp = target;
 }
 
+/**
+ * @brief Toggle whether to hold temperature at the holding temperature or not
+ * 
+ */
 void Thermostat::toggleHold(){
   hold = !hold;
 }
